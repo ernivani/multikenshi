@@ -7,35 +7,12 @@
 #include "gameState.h"
 #include "commands.h"
 #include "func.h"
+#include "gui_console.h"
 namespace commands {
     using argsT = std::vector<std::string>;
     std::map<std::string, void(*)(std::vector<std::string>&)> commands;
-    void commandsLoop() {
-        init();
-        bool running = true;
-        while (running) {
-            std::string commandLine;
-            std::getline(std::cin, commandLine);
-            std::cout << "> ";
-            std::stringstream ss(commandLine);
-            std::string command;
-            ss >> command;
+    static bool initialized = false;
 
-            argsT arguments;
-            std::string argument;
-            while (ss >> argument) {  // Get all arguments
-                arguments.push_back(argument);
-            }
-
-            // Find the command in the map and call the associated function
-            if (commands.find(command) != commands.end()) {
-                commands[command](arguments);
-            }
-            else {
-                std::cout << "Unknown command: \"" << command << "\". Type \"help\" to see a list of commands.\n";
-            }
-        }
-    }
     void help(argsT& args) {
         if (args.size() > 0 && args[0] == "info") {
             std::cout << "help - brings up this list \n";return;
@@ -51,7 +28,7 @@ namespace commands {
         if (gameState::chars.size() == 0) { std::cout << "No characters found \n";return; }
         long long now = GetTickCount64();
         std::cout << "List of characters: \n";
-        
+
         std::vector<std::pair<structs::AnimationClassHuman*, std::pair<std::string, long long>>> filteredChars;
 
         // Check if the args size is greater than 0 and args[0] is not "info"
@@ -162,7 +139,7 @@ namespace commands {
         if (args.size() > 0 && args[0] == "info") {
             std::cout << "clear - clears console \n";return;
         }
-        std::system("cls");
+        guiConsole::clearLog();
     }
     void spawnItem(argsT& args) {
         //std::cout << (&(func::spawnItem)) << "\n";
@@ -184,7 +161,7 @@ namespace commands {
         structs::CharacterHuman* character = reinterpret_cast<structs::CharacterHuman*>(addressChar);
         structs::kenshiString* kenshiString = new structs::kenshiString(args[2]);
 
-        
+
         utils::log("bef spawnItem");
         structs::Item* item = func::spawnItem(itemInfo);
         utils::log("bef section");
@@ -279,7 +256,20 @@ namespace commands {
         }
         gameState::scanHeap();
     }
+    void status(argsT& args) {
+        if (args.size() > 0 && args[0] == "info") {
+            std::cout << "status - shows mod status\n";
+            return;
+        }
+        std::cout << "Kenshi Multiplayer Mod\n";
+        std::cout << "Characters tracked: " << gameState::chars.size() << "\n";
+        std::cout << "Buildings tracked: " << gameState::builds.size() << "\n";
+        std::cout << "Database entries: " << gameState::DB.size() << "\n";
+        std::cout << "Player: " << (gameState::player ? "detected" : "not detected") << "\n";
+    }
     void init() {
+        if (initialized) return;
+        initialized = true;
         commands["help"] = help;
         commands["chars"] = chars;
         commands["builds"] = builds;
@@ -290,5 +280,36 @@ namespace commands {
         commands["db"] = searchDB;
         commands["heapScan"] = heapScan;
         commands["spawnChar"] = bypassSquadChecks;
+        commands["status"] = status;
+    }
+    void dispatch(const std::string& commandLine) {
+        init(); // Ensure initialized
+        std::stringstream ss(commandLine);
+        std::string command;
+        ss >> command;
+        if (command.empty()) return;
+
+        argsT arguments;
+        std::string argument;
+        while (ss >> argument) {
+            arguments.push_back(argument);
+        }
+
+        if (commands.find(command) != commands.end()) {
+            commands[command](arguments);
+        }
+        else {
+            std::cout << "Unknown command: \"" << command << "\". Type \"help\" to see a list of commands.\n";
+        }
+    }
+    void commandsLoop() {
+        init();
+        bool running = true;
+        while (running) {
+            std::string commandLine;
+            std::getline(std::cin, commandLine);
+            std::cout << "> ";
+            dispatch(commandLine);
+        }
     }
 }

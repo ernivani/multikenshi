@@ -1,0 +1,74 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:KenshiLauncher.ViewModels"
+        x:Class="KenshiLauncher.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Kenshi Multiplayer"
+        Width="960" Height="680"
+        MinWidth="800" MinHeight="500"
+        Background="#0F0F0F"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="38"
+        SystemDecorations="Full">
+
+  <Grid ColumnDefinitions="200,*">
+    <!-- Sidebar -->
+    <Border Grid.Column="0" Background="#0E0E0E"
+            BorderBrush="#1E1E1E" BorderThickness="0,0,1,0">
+      <DockPanel Margin="24,62,16,16">
+        <!-- Brand at top -->
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,36">
+          <TextBlock Text="KENSHI" FontSize="28" FontWeight="Bold" Foreground="#C8B89A" />
+          <TextBlock Text="MULTIPLAYER" FontSize="12" Foreground="#444444" Margin="0,2,0,0" />
+        </StackPanel>
+
+        <!-- Version at bottom -->
+        <TextBlock DockPanel.Dock="Bottom" Text="v1.0.0" FontSize="12" Foreground="#444444" Margin="0,0,0,0" />
+
+        <!-- Nav items -->
+        <StackPanel Spacing="4">
+          <Panel>
+            <!-- Active indicator bar -->
+            <Border IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=0}"
+                    Width="3" Height="24" CornerRadius="1.5"
+                    Background="#C8B89A"
+                    HorizontalAlignment="Left" Margin="-24,0,0,0" />
+            <Button Classes="nav"
+                    Classes.active="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=0}"
+                    Content="Play"
+                    Command="{Binding NavigateToCommand}"
+                    CommandParameter="Play" />
+          </Panel>
+          <Panel>
+            <Border IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=1}"
+                    Width="3" Height="24" CornerRadius="1.5"
+                    Background="#C8B89A"
+                    HorizontalAlignment="Left" Margin="-24,0,0,0" />
+            <Button Classes="nav"
+                    Classes.active="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=1}"
+                    Content="Host"
+                    Command="{Binding NavigateToCommand}"
+                    CommandParameter="Host" />
+          </Panel>
+          <Panel>
+            <Border IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=2}"
+                    Width="3" Height="24" CornerRadius="1.5"
+                    Background="#C8B89A"
+                    HorizontalAlignment="Left" Margin="-24,0,0,0" />
+            <Button Classes="nav"
+                    Classes.active="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=2}"
+                    Content="Settings"
+                    Command="{Binding NavigateToCommand}"
+                    CommandParameter="Settings" />
+          </Panel>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <!-- Main content area -->
+    <Border Grid.Column="1" Background="#0F0F0F">
+      <ContentControl Content="{Binding CurrentPage}" Margin="40,62,40,32" />
+    </Border>
+  </Grid>
+</Window>

@@ -5,4 +5,5 @@ namespace gameState {
     void setPlayers(const std::string& data);
     void setPlayer1(const std::string& data);
     void setPlayer2(const std::string& data);
+    void initSetPaused();
 }

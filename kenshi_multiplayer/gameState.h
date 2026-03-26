@@ -28,6 +28,7 @@ namespace gameState {
     std::string getData();
 
     void setupHooks();
+    void initGameWorld();
     extern structs::AnimationClassHuman* player;
     extern structs::AnimationClassHuman* otherplayers;
     void scanHeap();

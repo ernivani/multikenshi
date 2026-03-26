@@ -2,6 +2,7 @@
 #include "utils.h"
 #include "offsets.h"
 #include "gameState.h"
+#include "gui_console.h"
 #include <cstdio>
 #include <vector>
 #include <string>
@@ -11,11 +12,7 @@
 
 namespace utils {
     void spawn_console() {
-        AllocConsole();
-		SetConsoleTitle(L"Multiplayer Mod Console");
-        FILE* stream;
-        freopen_s(&stream, "CONOUT$", "w", stdout);
-        freopen_s(&stream, "CONIN$", "r", stdin);
+        guiConsole::create();
     }
 	std::vector<std::string> split(const std::string& str, const std::string& delim) {
 		std::vector<std::string> rez;

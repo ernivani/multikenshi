@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:KenshiLauncher.ViewModels"
+             xmlns:views="using:KenshiLauncher.Views"
+             x:Class="KenshiLauncher.Views.PlayView"
+             x:DataType="vm:PlayViewModel">
+
+  <UserControl.Resources>
+    <views:LogColorConverter x:Key="LogColorConv" />
+  </UserControl.Resources>
+
+  <DockPanel>
+    <!-- DLL status footer -->
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0" Spacing="8">
+      <Ellipse Name="DllDot" Width="6" Height="6" VerticalAlignment="Center" Fill="#9E3D3D" />
+      <TextBlock Name="DllStatusText" FontSize="12" Foreground="#444444" VerticalAlignment="Center" />
+    </StackPanel>
+
+    <!-- Main content -->
+    <StackPanel>
+      <TextBlock Text="Play" FontSize="20" FontWeight="Bold" Foreground="#F0F0F0" />
+      <TextBlock Text="Connect to a server and launch Kenshi" FontSize="12" Foreground="#444444" Margin="0,4,0,20" />
+
+      <!-- Server Address -->
+      <TextBlock Text="SERVER ADDRESS" FontSize="12" Foreground="#888888" Margin="0,0,0,4" />
+      <TextBox Text="{Binding ClientIP}" Watermark="127.0.0.1" />
+
+      <TextBlock Text="PORT" FontSize="12" Foreground="#888888" Margin="0,14,0,4" />
+      <TextBox Text="{Binding ClientPort}" Watermark="8080" Width="180" HorizontalAlignment="Left" />
+
+      <!-- Play Multiplayer button -->
+      <Button Classes="accent" Height="48" HorizontalAlignment="Stretch" Margin="0,24,0,0"
+              Command="{Binding PlayMultiplayerCommand}"
+              IsEnabled="{Binding !IsPlaying}"
+              Name="PlayButton" Content="PLAY MULTIPLAYER" />
+
+      <!-- Singleplayer button -->
+      <Button Classes="ghost" Height="48" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+              Content="SINGLEPLAYER"
+              Command="{Binding SingleplayerCommand}"
+              IsVisible="{Binding !IsPlaying}" />
+
+      <!-- Log panel -->
+      <Border Background="#161616" CornerRadius="6" Margin="0,16,0,0"
+              BorderBrush="#2A2A2A" BorderThickness="1"
+              MinHeight="120" MaxHeight="300">
+        <ScrollViewer Name="PlayLogScroll" Padding="14,10">
+          <ItemsControl ItemsSource="{Binding $parent[Window].DataContext.LogLines}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:LogEntry">
+                <TextBlock Text="{Binding Text, StringFormat='&gt; {0}'}"
+                           Foreground="{Binding Color, Converter={StaticResource LogColorConv}}"
+                           FontSize="12" Margin="0,1" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Border>
+    </StackPanel>
+  </DockPanel>
+</UserControl>

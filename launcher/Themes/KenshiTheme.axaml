@@ -1,0 +1,160 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Color resources -->
+  <Style Selector=":is(Window)">
+    <Style.Resources>
+      <Color x:Key="ColBackground">#0F0F0F</Color>
+      <Color x:Key="ColSidebar">#0E0E0E</Color>
+      <Color x:Key="ColSurface">#161616</Color>
+      <Color x:Key="ColSurface2">#1E1E1E</Color>
+      <Color x:Key="ColBorder">#2A2A2A</Color>
+      <Color x:Key="ColAccent">#C8B89A</Color>
+      <Color x:Key="ColAccentLight">#E8E0D0</Color>
+      <Color x:Key="ColText1">#F0F0F0</Color>
+      <Color x:Key="ColText2">#888888</Color>
+      <Color x:Key="ColText3">#444444</Color>
+      <Color x:Key="ColGreen">#3D9E6A</Color>
+      <Color x:Key="ColRed">#9E3D3D</Color>
+      <Color x:Key="ColYellow">#9E8B3D</Color>
+
+      <SolidColorBrush x:Key="BrBackground" Color="#0F0F0F" />
+      <SolidColorBrush x:Key="BrSidebar" Color="#0E0E0E" />
+      <SolidColorBrush x:Key="BrSurface" Color="#161616" />
+      <SolidColorBrush x:Key="BrSurface2" Color="#1E1E1E" />
+      <SolidColorBrush x:Key="BrBorder" Color="#2A2A2A" />
+      <SolidColorBrush x:Key="BrAccent" Color="#C8B89A" />
+      <SolidColorBrush x:Key="BrAccentLight" Color="#E8E0D0" />
+      <SolidColorBrush x:Key="BrText1" Color="#F0F0F0" />
+      <SolidColorBrush x:Key="BrText2" Color="#888888" />
+      <SolidColorBrush x:Key="BrText3" Color="#444444" />
+      <SolidColorBrush x:Key="BrGreen" Color="#3D9E6A" />
+      <SolidColorBrush x:Key="BrRed" Color="#9E3D3D" />
+      <SolidColorBrush x:Key="BrYellow" Color="#9E8B3D" />
+      <SolidColorBrush x:Key="BrDarkText" Color="#0F0F0F" />
+    </Style.Resources>
+  </Style>
+
+  <!-- TextBox dark styling -->
+  <Style Selector="TextBox">
+    <Setter Property="Background" Value="#1E1E1E" />
+    <Setter Property="Foreground" Value="#F0F0F0" />
+    <Setter Property="BorderBrush" Value="#2A2A2A" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="12,10" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="CaretBrush" Value="#F0F0F0" />
+    <Setter Property="SelectionBrush" Value="#C8B89A" />
+    <Setter Property="SelectionForegroundBrush" Value="#0F0F0F" />
+  </Style>
+  <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+    <Setter Property="BorderBrush" Value="#C8B89A" />
+  </Style>
+  <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="#262626" />
+  </Style>
+
+  <!-- Accent button (filled) -->
+  <Style Selector="Button.accent">
+    <Setter Property="Background" Value="#C8B89A" />
+    <Setter Property="Foreground" Value="#0F0F0F" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.accent:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#E8E0D0" />
+    <Setter Property="Foreground" Value="#0F0F0F" />
+  </Style>
+  <Style Selector="Button.accent:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="#B0A080" />
+  </Style>
+
+  <!-- Ghost button (outline) -->
+  <Style Selector="Button.ghost">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="#888888" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="BorderBrush" Value="#333333" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.ghost:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#1E1E1E" />
+  </Style>
+  <Style Selector="Button.ghost:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="#262626" />
+  </Style>
+
+  <!-- Danger button (red tint) -->
+  <Style Selector="Button.danger">
+    <Setter Property="Background" Value="#331414" />
+    <Setter Property="Foreground" Value="#9E3D3D" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.danger:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#471919" />
+  </Style>
+  <Style Selector="Button.danger:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="#260F0F" />
+  </Style>
+
+  <!-- Surface button (browse, etc) -->
+  <Style Selector="Button.surface">
+    <Setter Property="Background" Value="#1E1E1E" />
+    <Setter Property="Foreground" Value="#F0F0F0" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="BorderBrush" Value="#333333" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.surface:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#262626" />
+  </Style>
+
+  <!-- Disabled button -->
+  <Style Selector="Button.accent:disabled /template/ ContentPresenter">
+    <Setter Property="Background" Value="#1E1E1E" />
+    <Setter Property="Foreground" Value="#444444" />
+  </Style>
+
+  <!-- Nav button -->
+  <Style Selector="Button.nav">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="#6E6E6E" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="Padding" Value="14,10" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.nav:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#191919" />
+    <Setter Property="Foreground" Value="#B4B4B4" />
+  </Style>
+  <Style Selector="Button.nav.active">
+    <Setter Property="Background" Value="#202020" />
+    <Setter Property="Foreground" Value="#F0F0F0" />
+  </Style>
+  <Style Selector="Button.nav.active /template/ ContentPresenter">
+    <Setter Property="Background" Value="#202020" />
+    <Setter Property="Foreground" Value="#F0F0F0" />
+  </Style>
+
+  <!-- ScrollViewer dark scrollbar -->
+  <Style Selector="ScrollViewer">
+    <Setter Property="AllowAutoHide" Value="True" />
+  </Style>
+</Styles>

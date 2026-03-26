@@ -1,0 +1,49 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:KenshiLauncher.ViewModels"
+             xmlns:views="using:KenshiLauncher.Views"
+             x:Class="KenshiLauncher.Views.HostView"
+             x:DataType="vm:HostViewModel">
+
+  <UserControl.Resources>
+    <views:LogColorConverter x:Key="LogColorConv" />
+  </UserControl.Resources>
+
+  <StackPanel>
+    <TextBlock Text="Host" FontSize="20" FontWeight="Bold" Foreground="#F0F0F0" />
+    <TextBlock Text="Run a multiplayer server" FontSize="12" Foreground="#444444" Margin="0,4,0,20" />
+
+    <!-- Port -->
+    <TextBlock Text="PORT" FontSize="12" Foreground="#888888" Margin="0,0,0,4" />
+    <TextBox Text="{Binding ServerPort}" Watermark="8080" Width="180" HorizontalAlignment="Left" />
+
+    <!-- Start/Stop button -->
+    <Button Name="ServerButton" Height="44" Width="220" HorizontalAlignment="Left" Margin="0,20,0,0"
+            Command="{Binding ToggleServerCommand}" />
+
+    <!-- Status -->
+    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,14,0,0">
+      <Ellipse Name="StatusDot" Width="8" Height="8" VerticalAlignment="Center" />
+      <TextBlock Name="StatusText" FontSize="14" VerticalAlignment="Center" />
+    </StackPanel>
+
+    <TextBlock Name="PlayerCountText" FontSize="14" Foreground="#888888" Margin="0,6,0,0" />
+
+    <!-- Log panel -->
+    <Border Background="#161616" CornerRadius="6" Margin="0,20,0,0"
+            BorderBrush="#2A2A2A" BorderThickness="1"
+            MinHeight="120" MaxHeight="300">
+      <ScrollViewer Name="HostLogScroll" Padding="14,10">
+        <ItemsControl ItemsSource="{Binding $parent[Window].DataContext.LogLines}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:LogEntry">
+              <TextBlock Text="{Binding Text, StringFormat='&gt; {0}'}"
+                         Foreground="{Binding Color, Converter={StaticResource LogColorConv}}"
+                         FontSize="12" Margin="0,1" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+  </StackPanel>
+</UserControl>

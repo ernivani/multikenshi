@@ -12,7 +12,11 @@
 #include <queue>
 namespace gameState {
     uintptr_t moduleBase = reinterpret_cast<uintptr_t>(GetModuleHandle(NULL));
-    structs::GameWorldClass* gameWorld = reinterpret_cast<structs::GameWorldClass*>(moduleBase + offsets::gameWorldOffset);
+    structs::GameWorldClass* gameWorld = nullptr;
+
+    void initGameWorld() {
+        gameWorld = reinterpret_cast<structs::GameWorldClass*>(moduleBase + offsets::gameWorldOffset);
+    }
 
     std::vector < trackedVariable> variables;
     bool gameLoaded = false; // true = in main menu

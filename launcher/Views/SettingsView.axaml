@@ -1,0 +1,34 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:KenshiLauncher.ViewModels"
+             x:Class="KenshiLauncher.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+  <StackPanel>
+    <TextBlock Text="Settings" FontSize="20" FontWeight="Bold" Foreground="#F0F0F0" />
+    <TextBlock Text="Configure game path and preferences" FontSize="12" Foreground="#444444" Margin="0,4,0,24" />
+
+    <!-- Kenshi path -->
+    <TextBlock Text="KENSHI INSTALLATION PATH" FontSize="12" Foreground="#888888" Margin="0,0,0,4" />
+    <Grid ColumnDefinitions="*,10,Auto">
+      <TextBox Grid.Column="0" Text="{Binding KenshiPath}" Watermark="C:\...\Kenshi" />
+      <Button Grid.Column="2" Classes="surface" Content="Browse" Width="90" Height="36"
+              Command="{Binding BrowseCommand}" />
+    </Grid>
+
+    <!-- Exe found status -->
+    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0"
+                Name="ExeStatus">
+      <Ellipse Name="ExeDot" Width="6" Height="6" VerticalAlignment="Center" />
+      <TextBlock Name="ExeText" FontSize="12" VerticalAlignment="Center" />
+    </StackPanel>
+
+    <!-- DLL status -->
+    <TextBlock Text="DLL STATUS" FontSize="12" Foreground="#888888" Margin="0,28,0,6" />
+    <StackPanel Orientation="Horizontal" Spacing="8">
+      <Ellipse Name="DllDot" Width="6" Height="6" VerticalAlignment="Center" />
+      <TextBlock Text="kenshi_multiplayer.dll" FontSize="12" Foreground="#444444" VerticalAlignment="Center" />
+      <TextBlock Name="DllStatusLabel" FontSize="12" VerticalAlignment="Center" />
+    </StackPanel>
+  </StackPanel>
+</UserControl>

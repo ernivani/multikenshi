@@ -10,17 +10,23 @@
 namespace gameState {
     extern structs::GameWorldClass* gameWorld;
     using GameWorldOffset = void(*)(structs::GameWorldClass*, bool);
-    GameWorldOffset setPaused = reinterpret_cast<GameWorldOffset>(moduleBase + offsets::setPaused);
+    static GameWorldOffset gamePauseFn = nullptr;
+
+    void initSetPaused() {
+        if (offsets::setPaused != 0)
+            gamePauseFn = reinterpret_cast<GameWorldOffset>(moduleBase + offsets::setPaused);
+    }
 
     void setSpeed(const std::string& data) {
         float desiredSpeed = std::stof(data);
         gameWorld->gameSpeed = desiredSpeed;
+        if (!gamePauseFn) return;
         if (desiredSpeed == 0&& gameWorld->paused == false) {//pause
-            setPaused(gameWorld, true);
+            gamePauseFn(gameWorld, true);
         }else if(desiredSpeed != 0 && gameWorld->paused == true) {//unpause
             gameWorld->paused = false;
-            setPaused(gameWorld, true);
-            setPaused(gameWorld, false);
+            gamePauseFn(gameWorld, true);
+            gamePauseFn(gameWorld, false);
         }
     }
     void setFaction(const std::string& data) {// can only be done before game is launched

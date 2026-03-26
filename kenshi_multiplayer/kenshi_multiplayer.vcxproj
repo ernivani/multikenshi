@@ -152,8 +152,10 @@
     <ClInclude Include="gameState.h" />
     <ClInclude Include="gameStateGetters.h" />
     <ClInclude Include="gameStateSetters.h" />
+    <ClInclude Include="gui_console.h" />
     <ClInclude Include="network.h" />
     <ClInclude Include="offsets.h" />
+    <ClInclude Include="patternScan.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="structs.h" />
     <ClInclude Include="utils.h" />
@@ -165,7 +167,10 @@
     <ClCompile Include="gameState.cpp" />
     <ClCompile Include="gameStateGetters.cpp" />
     <ClCompile Include="gameStateSetters.cpp" />
+    <ClCompile Include="gui_console.cpp" />
     <ClCompile Include="network.cpp" />
+    <ClCompile Include="offsets.cpp" />
+    <ClCompile Include="patternScan.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
