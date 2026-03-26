@@ -3,6 +3,7 @@
 #include "gameStateGetters.h"
 #include "gameState.h"
 #include "offsets.h"
+#include "crashlog.h"
 #include <string>
 #include <sstream>
 #include <vector>
@@ -145,80 +146,90 @@ namespace gameState {
              0x4C, 0x8B, 0x24, 0x28,               //mov r12,[rax+rbp]
              0x49, 0x8B, 0xCC,                     //mov rcx,r12
              0x49, 0x8B, 0x04, 0x24,               //mov rax,[r12]
-             0xFF, 0x90, 0xD8, 0x00, 0x00, 0x00 }, //call qword ptr [rax+000000D8] 
+             0xFF, 0x90, 0xD8, 0x00, 0x00, 0x00 }, //call qword ptr [rax+000000D8]
             {},
             &onBuildingUpdate,//it shouldn't work cause arg is in rdx, but somehow it works so whatever
             {}
         );
-        utils::createHook(
-            moduleBase + offsets::spawnSquadBypass,
-            {
-                0x48, 0x8D, 0xAC, 0x24, 0x30, 0xFF, 0xFF, 0xFF, //- lea rbp,[rsp - 000000D0]
-                0x48, 0x81, 0xEC, 0xD0, 0x01, 0x00, 0x00        //- sub rsp,000001D0
-            },
-            {0x52},//push rdx
-            &bypassSquadSpawningCheck,
-            {0x5A}//pop rdx
-        );
-        utils::createHook(
-            moduleBase + offsets::spawnSquadFuncCall,
-            {
-                //  0x4C, 0x8B, 0x4E, 0x30                         // mov r9,[rsi+30]
-                //, 0x4C, 0x8D, 0x45, 0xA0                        // lea r8,[rbp-60]
-                  0x90, 0x90, 0x90, 0x90                         
-              , 0x90, 0x90, 0x90, 0x90                        
-              ,0x90,0x90,0x90,0x90,0x90,0x90,0x90
-            //, 0x48, 0x8B, 0x0D, 0x49, 0x3A, 0xC3, 0x01     //- mov rcx,[kenshi.exe+21334E0]
-            },
-            { 0x52,0x41,0x52, //push rdx  push r10
+        if (offsets::spawnSquadBypass != 0) {
+            utils::createHook(
+                moduleBase + offsets::spawnSquadBypass,
+                {
+                    0x48, 0x8D, 0xAC, 0x24, 0x30, 0xFF, 0xFF, 0xFF, //- lea rbp,[rsp - 000000D0]
+                    0x48, 0x81, 0xEC, 0xD0, 0x01, 0x00, 0x00        //- sub rsp,000001D0
+                },
+                {0x52},//push rdx
+                &bypassSquadSpawningCheck,
+                {0x5A}//pop rdx
+            );
+        } else {
+            std::cout << "SKIP: spawnSquadBypass hook (offset not resolved)\n";
+        }
+        if (offsets::spawnSquadFuncCall != 0) {
+            utils::createHook(
+                moduleBase + offsets::spawnSquadFuncCall,
+                {
+                    //  0x4C, 0x8B, 0x4E, 0x30                         // mov r9,[rsi+30]
+                    //, 0x4C, 0x8D, 0x45, 0xA0                        // lea r8,[rbp-60]
+                      0x90, 0x90, 0x90, 0x90
+                  , 0x90, 0x90, 0x90, 0x90
+                  ,0x90,0x90,0x90,0x90,0x90,0x90,0x90
+                //, 0x48, 0x8B, 0x0D, 0x49, 0x3A, 0xC3, 0x01     //- mov rcx,[kenshi.exe+21334E0]
+                },
+                { 0x52,0x41,0x52, //push rdx  push r10
 
-            },
-            & spawnSquadInjection, // TODO write this in assembler
-            //& utils::nop,
-            { 
-                0x41,0x5A, 0x5A // pop r10, pop rdx
-                ,0x48 ,0x8B ,0x48 ,0x18 //- mov rcx,[rax+38]
-                , 0x48 , 0x8B , 0x09 //- mov rcx,[rcx]
-                
-                , 0x48, 0x83, 0xF8, 0x00        // cmp rax,00
-                , 0x0F, 0x84, 0x15, 0x00, 0x00, 0x00  // je 204E001F
-                , 0x4C, 0x8B, 0x08              // mov r9,[rax]
-                , 0x4C, 0x89, 0x4C, 0x24, 0x30     // mov[rsp + 30],r9
-                , 0x4C, 0x8D, 0x40, 0x08        // lea r8,[rax + 08]
-                , 0x4C, 0x8B, 0x4E, 0x30        // mov r9,[rsi + 30]
-                , 0xE9, 0x08, 0x00, 0x00, 0x00     // jmp 204E0027
-                , 0x4C, 0x8B, 0x4E, 0x30        // mov r9,[rsi + 30]
-                , 0x4C, 0x8D, 0x45, 0xA0        // lea r8,[rbp - 60]
+                },
+                & spawnSquadInjection, // TODO write this in assembler
+                //& utils::nop,
+                {
+                    0x41,0x5A, 0x5A // pop r10, pop rdx
+                    ,0x48 ,0x8B ,0x48 ,0x18 //- mov rcx,[rax+38]
+                    , 0x48 , 0x8B , 0x09 //- mov rcx,[rcx]
 
-            }
-        );
+                    , 0x48, 0x83, 0xF8, 0x00        // cmp rax,00
+                    , 0x0F, 0x84, 0x15, 0x00, 0x00, 0x00  // je 204E001F
+                    , 0x4C, 0x8B, 0x08              // mov r9,[rax]
+                    , 0x4C, 0x89, 0x4C, 0x24, 0x30     // mov[rsp + 30],r9
+                    , 0x4C, 0x8D, 0x40, 0x08        // lea r8,[rax + 08]
+                    , 0x4C, 0x8B, 0x4E, 0x30        // mov r9,[rsi + 30]
+                    , 0xE9, 0x08, 0x00, 0x00, 0x00     // jmp 204E0027
+                    , 0x4C, 0x8B, 0x4E, 0x30        // mov r9,[rsi + 30]
+                    , 0x4C, 0x8D, 0x45, 0xA0        // lea r8,[rbp - 60]
+
+                }
+            );
+        } else {
+            std::cout << "SKIP: spawnSquadFuncCall hook (offset not resolved)\n";
+        }
     }
     std::map<std::string,structs::GameData*> DB;
     void scanHeap() {
         long long startTime;
         std::vector<uintptr_t> result;
-        auto var = (*(reinterpret_cast<void**>(moduleBase + offsets::squadSpawningHand)));
-        //std::cout << var << "\n";
-        while (*(reinterpret_cast<void**>(moduleBase + offsets::squadSpawningHand)) == 0) {
-            var = (*(reinterpret_cast<void**>(moduleBase + offsets::squadSpawningHand)));
-            //std::cout << var << "\n";
-            Sleep(500); }
-        
-        while (result.size() < 54949) {//if you have at least this ammount then probably everything was loaded
+
+        crashlog::phase("heap_scan: scanning for GameDataManagerMain");
+        std::cout << "  GameDataManagerMain target: 0x" << std::hex
+                  << (moduleBase + offsets::GameDataManagerMain) << std::dec << std::endl;
+
+        int scanPass = 0;
+        while (result.size() < 54949) {
             Sleep(500);
             startTime = GetTickCount64();
+            crashlog::phase("heap_scan: scanMemoryForValue pass");
             result = std::move(utils::scanMemoryForValue(gameState::moduleBase + offsets::GameDataManagerMain));
+            scanPass++;
+            if (scanPass <= 5 || scanPass % 10 == 0) {
+                std::cout << "  Scan pass " << scanPass << ": " << result.size() << " results" << std::endl;
+            }
         }
+        std::cout << "  Scan complete: " << result.size() << " results in " << scanPass << " passes." << std::endl;
+
+        crashlog::phase("heap_scan: building DB");
         gameLoaded = true;
-        int ii = 0;
         for (uintptr_t i : result) {
             structs::GameData* data = reinterpret_cast<structs::GameData*>(i-0x10);
             auto name = data->getName();
             if(utils::isValidName(name))DB[name] = data;
-            /*else {
-                std::cout << utils::isValidName(name) << " " << data;
-                utils::pause();
-            }*/
         }
         std::cout << "HeapScan: found " << DB.size() << " entries in " << ((GetTickCount64() - startTime) / 1000.) << "s.\n";
     }

@@ -147,6 +147,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="commands.h" />
+    <ClInclude Include="crashlog.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="func.h" />
     <ClInclude Include="gameState.h" />
@@ -162,6 +163,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="commands.cpp" />
+    <ClCompile Include="crashlog.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="func.cpp" />
     <ClCompile Include="gameState.cpp" />

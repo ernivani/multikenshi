@@ -107,6 +107,26 @@ namespace utils {
 
 
 
+	// Plain C helper with SEH — scans a memory region safely.
+	// Returns number of matches found. Cannot have C++ objects (MSVC SEH restriction).
+	__declspec(nothrow) static size_t scanRegionSafe(
+		uint64_t* ptr, size_t count, uint64_t targetValue,
+		uintptr_t alignedStart, uintptr_t* outBuf, size_t outBufCap)
+	{
+		size_t found = 0;
+		__try {
+			for (size_t i = 0; i < count; ++i) {
+				if (ptr[i] == targetValue && found < outBufCap) {
+					outBuf[found++] = alignedStart + i * 8;
+				}
+			}
+		}
+		__except (EXCEPTION_EXECUTE_HANDLER) {
+			// Region became invalid during scan — return what we found so far
+		}
+		return found;
+	}
+
 	std::vector<uintptr_t> scanMemoryForValue(uint64_t targetValue) {
 		std::vector<uintptr_t> results;
 		SYSTEM_INFO sysInfo;
@@ -114,6 +134,11 @@ namespace utils {
 
 		uintptr_t startAddr = reinterpret_cast<uintptr_t>(sysInfo.lpMinimumApplicationAddress);
 		uintptr_t endAddr = reinterpret_cast<uintptr_t>(sysInfo.lpMaximumApplicationAddress);
+
+		// Temp buffer for SEH-safe scan (4096 matches per region should be plenty)
+		static const size_t MATCH_BUF = 4096;
+		uintptr_t* matchBuf = (uintptr_t*)HeapAlloc(GetProcessHeap(), 0, MATCH_BUF * sizeof(uintptr_t));
+		if (!matchBuf) return results;
 
 		MEMORY_BASIC_INFORMATION memInfo;
 		while (startAddr < endAddr) {
@@ -129,7 +154,7 @@ namespace utils {
 					uintptr_t regionEnd = regionStart + memInfo.RegionSize;
 
 					// Align the start address to 8 bytes
-					uintptr_t alignedStart = (regionStart + 7) & ~7ULL; // Faster alignment
+					uintptr_t alignedStart = (regionStart + 7) & ~7ULL;
 					if (alignedStart >= regionEnd) {
 						startAddr = regionEnd;
 						continue;
@@ -137,16 +162,17 @@ namespace utils {
 
 					// Calculate end of aligned addresses
 					uintptr_t alignedEnd = regionEnd - 8;
-					if (alignedEnd < alignedStart) continue;
+					if (alignedEnd < alignedStart) {
+						startAddr += memInfo.RegionSize;
+						continue;
+					}
 
-					// Process in chunks for efficiency
 					uint64_t* ptr = reinterpret_cast<uint64_t*>(alignedStart);
 					size_t count = (alignedEnd - alignedStart) / 8 + 1;
 
-					for (size_t i = 0; i < count; ++i) {
-						if (ptr[i] == targetValue) {
-							results.push_back(alignedStart + i * 8);
-						}
+					size_t found = scanRegionSafe(ptr, count, targetValue, alignedStart, matchBuf, MATCH_BUF);
+					for (size_t j = 0; j < found; ++j) {
+						results.push_back(matchBuf[j]);
 					}
 				}
 				startAddr += memInfo.RegionSize;
@@ -155,6 +181,79 @@ namespace utils {
 				break; // Exit on error
 			}
 		}
+
+		HeapFree(GetProcessHeap(), 0, matchBuf);
 		return results;
+	}
+
+	// SEH-safe helper: count data-section references in a memory region.
+	__declspec(nothrow) static void countRefsInRegion(
+		uint64_t* ptr, size_t count,
+		uint64_t rangeStart, uint64_t rangeEnd,
+		int* freq, size_t numSlots)
+	{
+		__try {
+			for (size_t i = 0; i < count; ++i) {
+				uint64_t v = ptr[i];
+				if (v >= rangeStart && v < rangeEnd) {
+					size_t idx = (size_t)(v - rangeStart) / 8;
+					if (idx < numSlots)
+						freq[idx]++;
+				}
+			}
+		}
+		__except (EXCEPTION_EXECUTE_HANDLER) {}
+	}
+
+	DataGlobalResult findMostReferencedGlobal(uintptr_t dataBase, size_t dataSize) {
+		DataGlobalResult result = { 0, 0 };
+
+		size_t numSlots = dataSize / 8;
+		if (numSlots == 0) return result;
+
+		int* freq = (int*)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, numSlots * sizeof(int));
+		if (!freq) return result;
+
+		SYSTEM_INFO sysInfo;
+		GetSystemInfo(&sysInfo);
+		uintptr_t startAddr = reinterpret_cast<uintptr_t>(sysInfo.lpMinimumApplicationAddress);
+		uintptr_t endAddr = reinterpret_cast<uintptr_t>(sysInfo.lpMaximumApplicationAddress);
+
+		MEMORY_BASIC_INFORMATION memInfo;
+		while (startAddr < endAddr) {
+			if (VirtualQuery(reinterpret_cast<LPCVOID>(startAddr), &memInfo, sizeof(memInfo))) {
+				if (memInfo.State == MEM_COMMIT &&
+					(memInfo.Protect & (PAGE_READONLY | PAGE_READWRITE |
+						PAGE_WRITECOPY | PAGE_EXECUTE_READ |
+						PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY)) &&
+					!(memInfo.Protect & PAGE_GUARD)) {
+
+					uintptr_t regionStart = reinterpret_cast<uintptr_t>(memInfo.BaseAddress);
+					uintptr_t regionEnd = regionStart + memInfo.RegionSize;
+					uintptr_t aligned = (regionStart + 7) & ~7ULL;
+
+					if (aligned < regionEnd - 8) {
+						uint64_t* ptr = reinterpret_cast<uint64_t*>(aligned);
+						size_t count = (regionEnd - aligned) / 8;
+						countRefsInRegion(ptr, count, dataBase, dataBase + dataSize, freq, numSlots);
+					}
+				}
+				startAddr += memInfo.RegionSize;
+			}
+			else {
+				break;
+			}
+		}
+
+		// Find the slot with the highest count
+		for (size_t i = 0; i < numSlots; i++) {
+			if ((size_t)freq[i] > result.hitCount) {
+				result.hitCount = freq[i];
+				result.address = dataBase + i * 8;
+			}
+		}
+
+		HeapFree(GetProcessHeap(), 0, freq);
+		return result;
 	}
 }

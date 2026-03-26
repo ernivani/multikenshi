@@ -3,14 +3,28 @@
 #   make DEBUG=1   (Debug build)
 #   make clean
 
-# Auto-detect VS environment if cl.exe is not on PATH
+# Force cmd.exe to avoid MSYS path mangling (/nologo -> C:/Program Files/Git/nologo)
+SHELL := cmd.exe
+.SHELLFLAGS := /C
+
+# Auto-detect VS environment — re-invoke make under vcvars if cl is not on PATH
 VCVARS := "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-NEED_ENV := $(shell where cl >nul 2>&1 && echo 0 || echo 1)
-ifeq ($(NEED_ENV),1)
-  SETUP := call $(VCVARS) >nul 2>&1 &&
+ifeq ($(MSVC_ENV),1)
+  # Already inside the vcvars wrapper — proceed normally
+else ifneq ($(shell where cl >nul 2>&1 && echo ok),ok)
+  # cl not found — wrap the entire build in a single vcvars call
+  .PHONY: all clean
+  GOALS := $(or $(MAKECMDGOALS),all)
+  $(GOALS):
+	call $(VCVARS) >nul 2>&1 && $(MAKE) MSVC_ENV=1 $(GOALS)
+  .DEFAULT:
+	@rem handled above
 else
-  SETUP :=
+  # cl already on PATH (VS Developer Prompt) — proceed normally
+  MSVC_ENV := 1
 endif
+
+ifeq ($(MSVC_ENV),1)
 
 OUTDIR  := x64/Release
 INTDIR  := x64/Release/obj
@@ -20,7 +34,7 @@ TARGET  := $(OUTDIR)/$(DLLNAME)
 CC   := cl
 LD   := link
 
-SOURCES := pch.cpp commands.cpp dllmain.cpp func.cpp gameState.cpp \
+SOURCES := pch.cpp commands.cpp crashlog.cpp dllmain.cpp func.cpp gameState.cpp \
            gameStateGetters.cpp gameStateSetters.cpp gui_console.cpp \
            network.cpp offsets.cpp patternScan.cpp utils.cpp
 
@@ -58,15 +72,17 @@ $(INTDIR):
 
 # Precompiled header (must build first)
 $(INTDIR)/pch.obj: pch.cpp | $(INTDIR)
-	$(SETUP) $(CC) $(CFLAGS) /Yc"pch.h" /c $< /Fo"$@"
+	$(CC) $(CFLAGS) /Yc"pch.h" /c $< /Fo"$@"
 
 # All other .cpp files use the PCH
 $(INTDIR)/%.obj: %.cpp $(INTDIR)/pch.obj | $(INTDIR)
-	$(SETUP) $(CC) $(CFLAGS) /Yu"pch.h" /c $< /Fo"$@"
+	$(CC) $(CFLAGS) /Yu"pch.h" /c $< /Fo"$@"
 
 # Link
 $(TARGET): $(OBJECTS)
-	$(SETUP) $(LD) $(LDFLAGS) $(OBJECTS) $(LIBS)
+	$(LD) $(LDFLAGS) $(OBJECTS) $(LIBS)
 
 clean:
 	@if exist "$(subst /,\,$(OUTDIR))" rd /s /q "$(subst /,\,$(OUTDIR))"
+
+endif

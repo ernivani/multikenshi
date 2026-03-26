@@ -10,10 +10,16 @@
 #include "commands.h"
 #include "offsets.h"
 #include "gui_console.h"
+#include "crashlog.h"
+#include "patternScan.h"
 
 #define DEFAULT_PORT 8080
 
 void dllmain() {
+    // 0. Init crash logging (before anything else)
+    crashlog::init();
+    crashlog::phase("gui_console_create");
+
     // 1. Create GUI console (redirects cout/cerr)
     guiConsole::create();
 
@@ -21,6 +27,7 @@ void dllmain() {
     std::cout << "Scanning for offsets..." << std::endl;
 
     // 2. Resolve offsets via pattern scanning
+    crashlog::phase("pattern_scan");
     bool offsetsOk = offsets::resolveAllOffsets();
 
     std::cout << std::hex;
@@ -33,31 +40,36 @@ void dllmain() {
     std::cout << "  GameDataManagerMain: 0x" << offsets::GameDataManagerMain << std::endl;
     std::cout << std::dec;
 
-    if (!offsetsOk) {
-        std::cerr << "ERROR: Failed to resolve critical offsets! Mod cannot function." << std::endl;
+    // Check minimum required offsets (hooks for char/building)
+    bool hooksOk = offsets::charUpdateHook != 0
+                && offsets::buildingUpdateHook != 0
+                && offsets::spawnSquadBypass != 0;
+
+    if (!hooksOk) {
+        std::cerr << "ERROR: Failed to resolve hook offsets! Mod cannot function." << std::endl;
         guiConsole::setStatus("ERROR: Pattern scan failed");
-        return;
-    }
-    std::cout << "All critical offsets resolved." << std::endl;
-
-    // 3. Initialize game world pointer
-    gameState::initGameWorld();
-    if (!gameState::gameWorld) {
-        std::cerr << "Failed to locate GameWorldClass in memory!" << std::endl;
-        guiConsole::setStatus("ERROR: GameWorld not found");
+        crashlog::phase("ABORT: pattern_scan_failed");
         return;
     }
 
-    // 4. Initialize setPaused function pointer (may be 0 if pattern not found)
-    gameState::initSetPaused();
+    bool needRuntimeDiscovery = (offsets::GameDataManagerMain == 0);
+    if (needRuntimeDiscovery) {
+        std::cout << "GameDataManagerMain not found by pattern scan." << std::endl;
+        std::cout << "Will discover at runtime after game loads." << std::endl;
+    } else {
+        std::cout << "All critical offsets resolved." << std::endl;
+    }
 
-    // 5. Initialize Winsock
+    // 3. Initialize Winsock early (doesn't depend on game offsets)
+    crashlog::phase("winsock_init");
     if (!network::initializeWinsock()) {
         std::cerr << "WSAStartup failed!" << std::endl;
+        crashlog::phase("ABORT: winsock_failed");
         return;
     }
 
-    // 6. Read config from kenshi_mp.ini next to the exe
+    // 4. Read config from kenshi_mp.ini next to the exe
+    crashlog::phase("read_config");
     char serverIP[256] = "127.0.0.1";
     int serverPort = DEFAULT_PORT;
     {
@@ -76,20 +88,89 @@ void dllmain() {
     }
     std::cout << "Config: " << serverIP << ":" << serverPort << std::endl;
 
-    // 7. Wait for game to load and scan heap
-    std::cout << "Waiting for game to load..." << std::endl;
-    guiConsole::setStatus("Waiting for game to load...");
+    // 5. Runtime discovery of GameDataManagerMain if pattern scan didn't find it
+    if (needRuntimeDiscovery) {
+        crashlog::phase("runtime_discovery");
+        std::cout << "Waiting for game to load (runtime discovery)..." << std::endl;
+        guiConsole::setStatus("Waiting for game to load...");
+
+        patternScan::SectionInfo data = patternScan::getDataSection();
+        if (data.size == 0) {
+            std::cerr << "ERROR: Could not find .data section!" << std::endl;
+            crashlog::phase("ABORT: no_data_section");
+            return;
+        }
+        std::cout << ".data section: 0x" << std::hex << data.base
+                  << " size: 0x" << data.size << std::dec << std::endl;
+
+        uintptr_t moduleBase = (uintptr_t)GetModuleHandle(NULL);
+        int scanPass = 0;
+        while (true) {
+            Sleep(3000);
+            scanPass++;
+            crashlog::phase("runtime_discovery: frequency scan");
+            auto result = utils::findMostReferencedGlobal(data.base, data.size);
+
+            std::cout << "  Discovery pass " << scanPass << ": best="
+                      << result.hitCount << " hits at 0x" << std::hex
+                      << result.address << std::dec << std::endl;
+
+            if (result.hitCount >= 54949) {
+                offsets::GameDataManagerMain = result.address - moduleBase;
+                offsets::squadSpawningHand = offsets::GameDataManagerMain + 0x480;
+                offsets::gameWorldOffset = offsets::GameDataManagerMain - 0x20;
+
+                std::cout << "  Discovered GameDataManagerMain: 0x" << std::hex
+                          << offsets::GameDataManagerMain << std::endl;
+                std::cout << "  Derived squadSpawningHand:      0x"
+                          << offsets::squadSpawningHand << std::endl;
+                std::cout << "  Derived gameWorldOffset:        0x"
+                          << offsets::gameWorldOffset << std::dec << std::endl;
+                break;
+            }
+
+            if (scanPass >= 120) { // 6 minutes max
+                std::cerr << "ERROR: Timed out waiting for game data." << std::endl;
+                crashlog::phase("ABORT: discovery_timeout");
+                return;
+            }
+        }
+    }
+
+    // 6. Initialize game world pointer
+    crashlog::phase("init_game_world");
+    gameState::initGameWorld();
+    if (!gameState::gameWorld) {
+        std::cerr << "Failed to locate GameWorldClass in memory!" << std::endl;
+        guiConsole::setStatus("ERROR: GameWorld not found");
+        crashlog::phase("ABORT: gameworld_null");
+        return;
+    }
+
+    // 7. Initialize setPaused function pointer (may be 0 if pattern not found)
+    crashlog::phase("init_set_paused");
+    gameState::initSetPaused();
+
+    // 8. Wait for game to load and scan heap
+    crashlog::phase("heap_scan_wait");
+    std::cout << "Scanning heap..." << std::endl;
+    guiConsole::setStatus("Scanning game data...");
     gameState::scanHeap();
+    std::cout << "Game loaded." << std::endl;
 
-    // 8. Setup hooks and tracked variables
+    // 9. Setup hooks and tracked variables
+    crashlog::phase("setup_hooks");
     gameState::init();
+    std::cout << "Hooks installed." << std::endl;
 
-    // 9. Initialize commands
+    // 10. Initialize commands
+    crashlog::phase("commands_init");
     commands::init();
     std::cout << "[Console Ready]" << std::endl;
     guiConsole::setStatus("Ready - not connected");
 
-    // 10. Network connect with retry
+    // 11. Network connect with retry
+    crashlog::phase("network_connect");
     std::cout << "Connecting to " << serverIP << ":" << serverPort << "..." << std::endl;
     SOCKET client_fd = INVALID_SOCKET;
     for (int attempt = 1; attempt <= 5 && client_fd == INVALID_SOCKET; ++attempt) {
@@ -101,6 +182,7 @@ void dllmain() {
     }
 
     if (client_fd != INVALID_SOCKET) {
+        crashlog::phase("connected");
         std::cout << "Connected to server!" << std::endl;
         guiConsole::setStatus(std::string("Connected to ") + serverIP + ":" + std::to_string(serverPort));
         std::thread(network::receiveMessages, client_fd).join();
@@ -110,6 +192,7 @@ void dllmain() {
         std::cout << "Failed to connect to server after 5 attempts." << std::endl;
         guiConsole::setStatus("Disconnected - server not found");
     }
+    crashlog::phase("shutdown");
 }
 
 DWORD WINAPI threadWrapper(LPVOID param) {

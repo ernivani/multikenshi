@@ -51,9 +51,18 @@ namespace network {
                 break;
             }
 
-            gameState::setData(response);
-            std::string data = gameState::getData();
-            sendMessage(client_fd, data);
+            try {
+                gameState::setData(response);
+                std::string data = gameState::getData();
+                sendMessage(client_fd, data);
+            }
+            catch (const std::exception& e) {
+                std::cerr << "ERROR in network loop: " << e.what() << "\n";
+                std::cerr << "  Raw data: [" << response << "]\n";
+            }
+            catch (...) {
+                std::cerr << "ERROR in network loop: unknown exception\n";
+            }
         }
     }
     void sendMessage(SOCKET client_fd, const std::string& message) {

@@ -75,7 +75,8 @@ public partial class SettingsViewModel : ObservableObject
             try { File.Delete(dllPath); removed++; }
             catch (Exception ex)
             {
-                UninstallMessage = $"Failed to delete DLL: {ex.Message}";
+                UninstallMessage = $"Failed: {ex.Message}";
+                _main.CopyToClipboard(ex.ToString());
                 return;
             }
         }

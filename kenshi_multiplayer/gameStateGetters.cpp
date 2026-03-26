@@ -9,6 +9,7 @@ namespace gameState {
 		return std::to_string(gameWorld->gameSpeed);
 	}
 	std::string getFaction() {
+		if (offsets::factionString == 0) return "!unknown";
 		char* factionStringPtr = reinterpret_cast<char*>(moduleBase + offsets::factionString);
 		return std::string(factionStringPtr, 17);
 	}

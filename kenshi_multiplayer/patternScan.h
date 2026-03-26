@@ -8,5 +8,6 @@ namespace patternScan {
     };
 
     SectionInfo getTextSection();
+    SectionInfo getDataSection();
     uintptr_t scan(uintptr_t start, size_t size, const uint8_t* pattern, const char* mask, size_t patternLen);
 }

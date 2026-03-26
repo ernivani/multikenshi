@@ -92,6 +92,10 @@ public partial class PlayViewModel : ObservableObject
     }
 
     public bool IsPlayReady => DllStatus == DllStatus.Ready || DllStatus == DllStatus.Outdated;
+    public bool ShowPlay => !IsPlaying && DllStatus == DllStatus.Ready;
+    public bool ShowUpdate => !IsPlaying && DllStatus == DllStatus.Outdated;
+    public bool ShowInstall => !IsPlaying && !IsPlayReady;
+    public bool ShowStop => IsPlaying;
 
     public ObservableCollection<ChangelogEntry> Changelog { get; } = new();
 
@@ -118,6 +122,20 @@ public partial class PlayViewModel : ObservableObject
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(StatusSubText));
         OnPropertyChanged(nameof(IsPlayReady));
+        NotifyButtonVisibility();
+    }
+
+    partial void OnIsPlayingChanged(bool value)
+    {
+        NotifyButtonVisibility();
+    }
+
+    private void NotifyButtonVisibility()
+    {
+        OnPropertyChanged(nameof(ShowPlay));
+        OnPropertyChanged(nameof(ShowUpdate));
+        OnPropertyChanged(nameof(ShowInstall));
+        OnPropertyChanged(nameof(ShowStop));
     }
 
     private void LoadChangelog()
@@ -279,6 +297,7 @@ public partial class PlayViewModel : ObservableObject
                 catch (System.Exception ex)
                 {
                     _main.PostLog($"ERROR: Could not stop Kenshi — {ex.Message}");
+                    _main.CopyToClipboard(ex.ToString());
                 }
             }
         }
@@ -303,9 +322,21 @@ public partial class PlayViewModel : ObservableObject
 
             if (exited)
             {
+                // Read crash log before posting to UI
+                string? crashInfo = ReadCrashLog();
+
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    _main.PostLog("Kenshi has exited.");
+                    if (crashInfo != null)
+                    {
+                        _main.PostLog("Kenshi CRASHED:");
+                        _main.PostLog(crashInfo);
+                        _main.CopyToClipboard(crashInfo);
+                    }
+                    else
+                    {
+                        _main.PostLog("Kenshi has exited.");
+                    }
                     CleanupProcess();
                 });
             }
@@ -318,6 +349,28 @@ public partial class PlayViewModel : ObservableObject
         _processTimer = null;
         _kenshiProcess = null;
         IsPlaying = false;
+    }
+
+    private string? ReadCrashLog()
+    {
+        if (string.IsNullOrEmpty(_config.KenshiPath)) return null;
+
+        var logPath = System.IO.Path.Combine(_config.KenshiPath, "kenshi_mp_crash.log");
+        if (!System.IO.File.Exists(logPath)) return null;
+
+        try
+        {
+            var content = System.IO.File.ReadAllText(logPath);
+            if (content.Contains("=== CRASH ==="))
+            {
+                // Extract from CRASH marker onwards
+                int idx = content.IndexOf("=== CRASH ===");
+                return content.Substring(idx).Trim();
+            }
+        }
+        catch { }
+
+        return null;
     }
 
     [RelayCommand]
@@ -347,7 +400,7 @@ public partial class PlayViewModel : ObservableObject
         InstallMessage = "Searching for DLL...";
 
         var dest = ProcessLauncher.GetDllPath();
-        var source = FindLocalDll();
+        var source = FindLocalDll(dest);
 
         if (source == null)
         {
@@ -359,8 +412,35 @@ public partial class PlayViewModel : ObservableObject
         try
         {
             InstallMessage = "Copying DLL...";
+            var oldPath = dest + ".old";
+
+            // If the DLL is locked (e.g. injected into Kenshi), rename it first
+            if (System.IO.File.Exists(dest))
+            {
+                try
+                {
+                    if (System.IO.File.Exists(oldPath))
+                        System.IO.File.Delete(oldPath);
+                }
+                catch { }
+
+                try
+                {
+                    System.IO.File.Move(dest, oldPath);
+                }
+                catch
+                {
+                    // Move failed too — file is truly locked, try direct overwrite as last resort
+                }
+            }
+
             System.IO.File.Copy(source, dest, overwrite: true);
             Services.DllIntegrity.WriteHash(dest);
+
+            // Clean up .old file
+            try { if (System.IO.File.Exists(oldPath)) System.IO.File.Delete(oldPath); }
+            catch { /* still locked, will be cleaned up next time */ }
+
             InstallMessage = "Installed successfully";
             _main.PostLog($"Installed DLL from {source}");
             RefreshDllStatus();
@@ -370,7 +450,8 @@ public partial class PlayViewModel : ObservableObject
         catch (System.Exception ex)
         {
             InstallMessage = $"Failed: {ex.Message}";
-            _main.PostLog($"ERROR: Failed to copy DLL — {ex.Message}");
+            _main.PostLog($"ERROR: Failed to copy DLL {ex.Message}");
+            _main.CopyToClipboard(ex.ToString());
         }
         finally
         {
@@ -384,13 +465,19 @@ public partial class PlayViewModel : ObservableObject
         InstallMessage = "";
     }
 
-    private string? FindLocalDll()
+    private string? FindLocalDll(string? excludePath = null)
     {
+        bool IsExcluded(string path) =>
+            excludePath != null && string.Equals(
+                System.IO.Path.GetFullPath(path),
+                System.IO.Path.GetFullPath(excludePath),
+                System.StringComparison.OrdinalIgnoreCase);
+
         // 1. Check the vcxproj output location (Kenshi directory)
         if (!string.IsNullOrEmpty(_config.KenshiPath))
         {
             var kenshiDll = System.IO.Path.Combine(_config.KenshiPath, "kenshi_multiplayer.dll");
-            if (System.IO.File.Exists(kenshiDll))
+            if (System.IO.File.Exists(kenshiDll) && !IsExcluded(kenshiDll))
                 return kenshiDll;
         }
 
@@ -403,11 +490,11 @@ public partial class PlayViewModel : ObservableObject
         {
             var candidate = System.IO.Path.Combine(
                 dir, "kenshi_multiplayer", "x64", "Release", "kenshi_multiplayer.dll");
-            if (System.IO.File.Exists(candidate))
+            if (System.IO.File.Exists(candidate) && !IsExcluded(candidate))
                 return candidate;
 
             var direct = System.IO.Path.Combine(dir, "kenshi_multiplayer.dll");
-            if (System.IO.File.Exists(direct))
+            if (System.IO.File.Exists(direct) && !IsExcluded(direct))
                 return direct;
 
             dir = System.IO.Path.GetDirectoryName(dir);
@@ -421,11 +508,48 @@ public partial class PlayViewModel : ObservableObject
         var dllPath = ProcessLauncher.GetDllPath();
         var (valid, reason) = Services.DllIntegrity.Verify(dllPath);
 
-        if (valid)
-            DllStatus = DllStatus.Ready;
-        else if (reason == "missing")
-            DllStatus = DllStatus.Missing;
-        else
-            DllStatus = DllStatus.Corrupted;
+        if (!valid)
+        {
+            DllStatus = reason == "missing" ? DllStatus.Missing : DllStatus.Corrupted;
+            return;
+        }
+
+        // Check if a newer build exists in the C++ build output
+        var buildDll = FindBuildOutputDll();
+        if (buildDll != null)
+        {
+            try
+            {
+                var installedHash = Services.DllIntegrity.ComputeHash(dllPath);
+                var buildHash = Services.DllIntegrity.ComputeHash(buildDll);
+                if (!string.Equals(installedHash, buildHash, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    DllStatus = DllStatus.Outdated;
+                    return;
+                }
+            }
+            catch { }
+        }
+
+        DllStatus = DllStatus.Ready;
+    }
+
+    private string? FindBuildOutputDll()
+    {
+        // Walk up from the launcher exe to find kenshi_multiplayer/x64/Release/
+        var dir = System.IO.Path.GetDirectoryName(
+            System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName);
+
+        while (dir != null)
+        {
+            var candidate = System.IO.Path.Combine(
+                dir, "kenshi_multiplayer", "x64", "Release", "kenshi_multiplayer.dll");
+            if (System.IO.File.Exists(candidate))
+                return candidate;
+
+            dir = System.IO.Path.GetDirectoryName(dir);
+        }
+
+        return null;
     }
 }

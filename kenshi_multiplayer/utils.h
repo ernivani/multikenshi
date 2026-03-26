@@ -1,3 +1,4 @@
+#pragma once
 #include<string>
 #include <vector>
 namespace utils {
@@ -20,4 +21,10 @@ namespace utils {
     void createHook(long long hookLocation, const std::vector<uint8_t>& oldCode,
         const std::vector<uint8_t>& befMyFunc, void* myFunc, const std::vector<uint8_t>& aftMyFunc);
 	std::vector<uintptr_t> scanMemoryForValue(uint64_t targetValue);
+
+	struct DataGlobalResult {
+		uintptr_t address;
+		size_t hitCount;
+	};
+	DataGlobalResult findMostReferencedGlobal(uintptr_t dataBase, size_t dataSize);
 }

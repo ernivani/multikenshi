@@ -2,6 +2,7 @@
 #include "offsets.h"
 #include "patternScan.h"
 #include <iostream>
+#include <iomanip>
 
 namespace offsets {
     uintptr_t factionString = 0;
@@ -70,44 +71,65 @@ namespace offsets {
             if (addr) {
                 spawnSquadBypass = addr - moduleBase;
 
-                // Search within ~2000 bytes for the funcCall sub-pattern:
-                //   mov r9,[rsi+30]; lea r8,[rbp-60]; mov rcx,[rip+rel32]
-                uint8_t funcPat[] = {
-                    0x4C,0x8B,0x4E,0x30,
-                    0x4C,0x8D,0x45,0xA0,
-                    0x48,0x8B,0x0D
-                };
-                uintptr_t funcAddr = patternScan::scan(addr, 2000, funcPat, "xxxxxxxxxxx", 11);
-                if (funcAddr) {
-                    spawnSquadFuncCall = funcAddr - moduleBase;
+                // Try to find squadSpawningHand via MOV reg,[rip+disp32] (works for GOG)
+                uintptr_t textEnd = text.base + text.size;
+                for (uintptr_t pos = addr + 15; pos < addr + 4000 - 7; pos++) {
+                    uint8_t b0 = *(uint8_t*)pos;
+                    uint8_t b1 = *(uint8_t*)(pos+1);
+                    uint8_t b2 = *(uint8_t*)(pos+2);
 
-                    // Extract RIP-relative offset from: 48 8B 0D [rel32]
-                    // 48 8B 0D starts at funcAddr+8, rel32 at funcAddr+11
-                    // instruction ends at funcAddr+15
-                    int32_t rel32 = *(int32_t*)(funcAddr + 11);
-                    uintptr_t target = (funcAddr + 15) + rel32;
+                    if ((b0 != 0x48 && b0 != 0x4C) || b1 != 0x8B)
+                        continue;
+                    if ((b2 & 0xC7) != 0x05)
+                        continue;
+
+                    int32_t rel32 = *(int32_t*)(pos + 3);
+                    uintptr_t target = (pos + 7) + rel32;
+                    if (target <= textEnd || target < moduleBase)
+                        continue;
+
+                    // Skip __security_cookie (followed by xor reg, rsp)
+                    bool cookie = false;
+                    for (int k = 0; k < 10; k++) {
+                        uint8_t x0 = *(uint8_t*)(pos + 7 + k);
+                        uint8_t x1 = *(uint8_t*)(pos + 7 + k + 1);
+                        uint8_t x2 = *(uint8_t*)(pos + 7 + k + 2);
+                        if (x0 == 0x48 && x1 == 0x33 && (x2 & 0x07) == 0x04) { cookie = true; break; }
+                        if (x0 == 0x48 && x1 == 0x31 && (x2 & 0x38) == 0x20) { cookie = true; break; }
+                    }
+                    if (cookie) continue;
+
+                    uint64_t val = *(uint64_t*)target;
+                    if (val != 0) continue; // squadSpawningHand is NULL at startup
+
+                    spawnSquadFuncCall = pos - moduleBase;
                     squadSpawningHand = target - moduleBase;
-
-                    // Derived offsets
                     gameWorldOffset = squadSpawningHand - 0x4A0;
                     GameDataManagerMain = squadSpawningHand - 0x480;
+                    std::cout << "  Found squadSpawningHand via MOV: RVA 0x"
+                              << std::hex << squadSpawningHand << std::dec << "\n";
+                    break;
+                }
+
+                // If MOV scan didn't find it, GameDataManagerMain stays 0
+                // and dllmain will use runtime frequency discovery
+                if (squadSpawningHand == 0) {
+                    std::cout << "  squadSpawningHand not found in function (Steam binary?).\n";
+                    std::cout << "  Will use runtime discovery for data offsets.\n";
                 }
             }
         }
 
+        // Hook offsets are always required.
+        // Data offsets (GameDataManagerMain, squadSpawningHand, gameWorldOffset)
+        // may be resolved at runtime if pattern scan can't find them.
         bool critical = charUpdateHook != 0
                      && buildingUpdateHook != 0
-                     && spawnSquadBypass != 0
-                     && spawnSquadFuncCall != 0
-                     && squadSpawningHand != 0
-                     && gameWorldOffset != 0
-                     && GameDataManagerMain != 0;
+                     && spawnSquadBypass != 0;
 
         if (!charUpdateHook)     std::cerr << "  MISSING: charUpdateHook\n";
         if (!buildingUpdateHook) std::cerr << "  MISSING: buildingUpdateHook\n";
         if (!spawnSquadBypass)   std::cerr << "  MISSING: spawnSquadBypass\n";
-        if (!spawnSquadFuncCall) std::cerr << "  MISSING: spawnSquadFuncCall\n";
-        if (!squadSpawningHand)  std::cerr << "  MISSING: squadSpawningHand\n";
 
         return critical;
     }

@@ -77,6 +77,22 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    public void CopyToClipboard(string text)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        {
+            try
+            {
+                var lifetime = Avalonia.Application.Current?.ApplicationLifetime as
+                    Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
+                var clipboard = lifetime?.MainWindow?.Clipboard;
+                if (clipboard != null)
+                    await clipboard.SetTextAsync(text);
+            }
+            catch { }
+        });
+    }
+
     private void AddLogLine(string text)
     {
         LogLines.Add(new LogEntry(text));
@@ -92,10 +108,12 @@ public partial class MainViewModel : ObservableObject
             case "Play":
                 ActiveTab = "Play";
                 CurrentPage = Play;
+                Play.RefreshDllStatus();
                 break;
             case "Settings":
                 ActiveTab = "Settings";
                 CurrentPage = Settings;
+                Settings.RefreshStatus();
                 break;
         }
     }
