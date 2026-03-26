@@ -64,23 +64,35 @@ namespace gameState {
     std::map<structs::Building*, std::pair<std::string, long long>> builds;
     structs::AnimationClassHuman* player = 0;
     structs::AnimationClassHuman* otherplayers = 0;
+    // SEH-safe helper: read a pointer from an object at a given offset.
+    // Returns 0 if the read faults.
+    __declspec(nothrow) static uintptr_t safeReadPtr(void* base, size_t offset) {
+        __try {
+            return *(uintptr_t*)((char*)base + offset);
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return 0;
+        }
+    }
     void onCharUpdate(structs::AnimationClassHuman* num) {
-        structs::AnimationClassHuman* dataToSave = (structs::AnimationClassHuman*)num->character;
-        if (chars.find(dataToSave) == chars.end()) {
-            const char* chosenName = num->character->getName();
-            chars[dataToSave] = std::make_pair(std::string(chosenName), 0);
-            //std::cout << "new npc " << num << ", name: " << chosenName << "\n";
+        if (!num) return;
+        structs::CharacterHuman* ch = (structs::CharacterHuman*)safeReadPtr(num, 0x2D8);
+        if (!ch) return;
+        if (chars.find((structs::AnimationClassHuman*)ch) == chars.end()) {
+            const char* chosenName = ch->getName();
+            if (!chosenName || !utils::isValidName(chosenName)) return;
+            chars[(structs::AnimationClassHuman*)ch] = std::make_pair(std::string(chosenName), 0);
             if (strcmp(chosenName, getOwnCharName().c_str()) == 0) player = num;
             if (strcmp(chosenName, getOtherCharName().c_str()) == 0) otherplayers = num;
         }
-        chars[dataToSave].second = GetTickCount64();
+        chars[(structs::AnimationClassHuman*)ch].second = GetTickCount64();
     }
     void onBuildingUpdate(structs::Building* num) {
+        if (!num) return;
         if (builds.find(num) == builds.end()) {
             const char* chosenName = num->getName();
+            if (!chosenName || !utils::isValidName(chosenName)) return;
             builds[num] = std::make_pair(std::string(chosenName), 0);
-            //if (std::strcmp(chosenName, "Sitting spot (invisible)") == 0) return;
-            //std::cout << "new build " << num << ", name: " << chosenName << "\n";
         }
         builds[num].second = GetTickCount64();
     }
@@ -140,18 +152,23 @@ namespace gameState {
             &onCharUpdate,
             {}
         );
+        // Only hook the 15 bytes BEFORE the virtual call.
+        // The call [rax+D8] must stay at the original location so exception
+        // unwinding works (our trampoline has no .pdata unwind info).
         utils::createHook(
             moduleBase + offsets::buildingUpdateHook,
             { 0x48, 0x8B, 0x43, 0x60,              //mov rax,[rbx+60]
              0x4C, 0x8B, 0x24, 0x28,               //mov r12,[rax+rbp]
              0x49, 0x8B, 0xCC,                     //mov rcx,r12
-             0x49, 0x8B, 0x04, 0x24,               //mov rax,[r12]
-             0xFF, 0x90, 0xD8, 0x00, 0x00, 0x00 }, //call qword ptr [rax+000000D8]
+             0x49, 0x8B, 0x04, 0x24 },             //mov rax,[r12]  (15 bytes)
             {},
-            &onBuildingUpdate,//it shouldn't work cause arg is in rdx, but somehow it works so whatever
+            &onBuildingUpdate,
             {}
         );
-        if (offsets::spawnSquadBypass != 0) {
+        // Only install squad hooks if the full pipeline is available
+        // (both bypass AND funcCall needed). The bypass hook replaces a function
+        // prologue which breaks .pdata exception unwind info.
+        if (offsets::spawnSquadBypass != 0 && offsets::spawnSquadFuncCall != 0) {
             utils::createHook(
                 moduleBase + offsets::spawnSquadBypass,
                 {
@@ -163,7 +180,7 @@ namespace gameState {
                 {0x5A}//pop rdx
             );
         } else {
-            std::cout << "SKIP: spawnSquadBypass hook (offset not resolved)\n";
+            std::cout << "SKIP: spawnSquadBypass hook (squad spawning not available)\n";
         }
         if (offsets::spawnSquadFuncCall != 0) {
             utils::createHook(

@@ -76,7 +76,7 @@ namespace utils {
 		std::memcpy(reinterpret_cast<void*>(hookLocation), oldCode.data(), oldCode.size());
 		VirtualProtect(reinterpret_cast<void*>(hookLocation), oldCode.size(), oldProtect, &oldProtect);
 	}
-	void createHook(long long hookLocation, const std::vector<uint8_t>& oldCode, 
+	void createHook(long long hookLocation, const std::vector<uint8_t>& oldCode,
 		const std::vector<uint8_t>& befMyFunc, void* myFunc, const std::vector<uint8_t>& aftMyFunc) {
 		size_t minSize = (asmb::jmp.size() + sizeof(void*)); //14
 		if (oldCode.size() < minSize) {
@@ -85,18 +85,71 @@ namespace utils {
 			return;
 		}
 		long long returnLocation = hookLocation + oldCode.size();
-		size_t size = befMyFunc.size() + asmb::call.size() + sizeof(void*) + aftMyFunc.size() + oldCode.size() + asmb::jmp.size() + sizeof(void*);
+
+		// Trampoline layout:
+		//   befMyFunc
+		//   pushfq + push all 15 GP regs (save state)
+		//   mov rbp,rsp; and rsp,-16; sub rsp,0x20 (align + shadow space)
+		//   mov rax,<funcAddr>; call rax (call our callback)
+		//   mov rsp,rbp (restore stack)
+		//   pop all 15 GP regs + popfq (restore state)
+		//   aftMyFunc
+		//   oldCode (original replaced bytes)
+		//   jmp [returnLocation]
+
+		// Save: pushfq(1) + push rax,rcx,rdx,rbx,rbp,rsi,rdi(7) + push r8-r15(16) = 24 bytes
+		uint8_t saveAll[] = {
+			0x9C,                                                     // pushfq
+			0x50, 0x51, 0x52, 0x53, 0x55, 0x56, 0x57,               // push rax-rdi (skip rsp)
+			0x41,0x50, 0x41,0x51, 0x41,0x52, 0x41,0x53,             // push r8-r11
+			0x41,0x54, 0x41,0x55, 0x41,0x56, 0x41,0x57              // push r12-r15
+		};
+		// Align stack + shadow space: 11 bytes
+		uint8_t alignStack[] = {
+			0x48, 0x89, 0xE5,       // mov rbp, rsp
+			0x48, 0x83, 0xE4, 0xF0, // and rsp, -16
+			0x48, 0x83, 0xEC, 0x20  // sub rsp, 0x20  (shadow space)
+		};
+		// Call: mov rax,imm64(10) + call rax(2) = 12 bytes
+		uint8_t callPrefix[] = { 0x48, 0xB8 }; // mov rax, <8-byte addr follows>
+		uint8_t callRax[] = { 0xFF, 0xD0 };    // call rax
+		// Restore stack: 3 bytes
+		uint8_t restoreRsp[] = { 0x48, 0x89, 0xEC }; // mov rsp, rbp
+		// Restore: pop r15-r8(16) + pop rdi-rax(7) + popfq(1) = 24 bytes
+		uint8_t restoreAll[] = {
+			0x41,0x5F, 0x41,0x5E, 0x41,0x5D, 0x41,0x5C,             // pop r15-r12
+			0x41,0x5B, 0x41,0x5A, 0x41,0x59, 0x41,0x58,             // pop r11-r8
+			0x5F, 0x5E, 0x5D, 0x5B, 0x5A, 0x59, 0x58,              // pop rdi-rax (skip rsp)
+			0x9D                                                      // popfq
+		};
+
+		size_t callBlockSize = sizeof(saveAll) + sizeof(alignStack)
+			+ sizeof(callPrefix) + sizeof(void*) + sizeof(callRax)
+			+ sizeof(restoreRsp) + sizeof(restoreAll);
+
+		size_t size = befMyFunc.size() + callBlockSize + aftMyFunc.size()
+			+ oldCode.size() + asmb::jmp.size() + sizeof(void*);
+
 		char* data = reinterpret_cast<char*>(VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
-		if (data == 0)return;//todo: do something maybe
+		if (data == 0)return;
 		size_t ofst = 0;
-		std::memcpy(reinterpret_cast<void*>(data + ofst), befMyFunc.data(), befMyFunc.size());ofst += befMyFunc.size();
-		std::memcpy(reinterpret_cast<void*>(data + ofst), asmb::call.data(), asmb::call.size());ofst += asmb::call.size();
-		std::memcpy(reinterpret_cast<void*>(data + ofst), &myFunc, sizeof(void*));ofst += sizeof(void*);
-		std::memcpy(reinterpret_cast<void*>(data + ofst), aftMyFunc.data(), aftMyFunc.size());ofst += aftMyFunc.size();
-		//if(executeOldCode)
-		std::memcpy(reinterpret_cast<void*>(data + ofst), oldCode.data(), oldCode.size());ofst += oldCode.size();
-		std::memcpy(reinterpret_cast<void*>(data + ofst), asmb::jmp.data(), asmb::jmp.size());ofst += asmb::jmp.size();
-		std::memcpy(reinterpret_cast<void*>(data + ofst), &returnLocation, sizeof(returnLocation));ofst += sizeof(returnLocation);
+		auto emit = [&](const void* src, size_t len) {
+			std::memcpy(data + ofst, src, len); ofst += len;
+		};
+
+		emit(befMyFunc.data(), befMyFunc.size());
+		emit(saveAll, sizeof(saveAll));
+		emit(alignStack, sizeof(alignStack));
+		emit(callPrefix, sizeof(callPrefix));
+		emit(&myFunc, sizeof(void*));
+		emit(callRax, sizeof(callRax));
+		emit(restoreRsp, sizeof(restoreRsp));
+		emit(restoreAll, sizeof(restoreAll));
+		emit(aftMyFunc.data(), aftMyFunc.size());
+		emit(oldCode.data(), oldCode.size());
+		emit(asmb::jmp.data(), asmb::jmp.size());
+		emit(&returnLocation, sizeof(returnLocation));
+
 		DWORD oldProtect;
 		VirtualProtect(reinterpret_cast<void*>(hookLocation), oldCode.size(), PAGE_EXECUTE_READWRITE, &oldProtect);
 		std::memcpy(reinterpret_cast<void*>(hookLocation), asmb::jmp.data(), asmb::jmp.size());

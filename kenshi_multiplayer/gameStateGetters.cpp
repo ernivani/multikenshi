@@ -5,6 +5,7 @@
 #include <map>
 namespace gameState {
 	std::string getSpeed() {
+		if (!gameWorld) return std::to_string(0.0f);
 		if(gameWorld->paused)return std::to_string(0.0f);
 		return std::to_string(gameWorld->gameSpeed);
 	}

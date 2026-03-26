@@ -30,6 +30,7 @@ namespace gameState {
         }
     }
     void setFaction(const std::string& data) {// can only be done before game is launched
+        if (offsets::factionString == 0) return; // Not resolved on Steam
         char* factionStringPtr = reinterpret_cast<char*>(moduleBase + offsets::factionString);
         DWORD oldProtect;//location is not writable so we cheat
         if (!VirtualProtect(factionStringPtr, data.size() + 1, PAGE_EXECUTE_READWRITE, &oldProtect)) {
