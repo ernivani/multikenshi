@@ -3,7 +3,7 @@
         xmlns:vm="using:KenshiLauncher.ViewModels"
         x:Class="KenshiLauncher.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="Kenshi Nexus"
+        Title="Kenshi Multi"
         Width="960" Height="680"
         MinWidth="800" MinHeight="500"
         Background="#0F0F0F"
@@ -21,7 +21,7 @@
         <Border Grid.Column="0" Background="Transparent"
                 PointerPressed="TitleBar_PointerPressed"
                 DoubleTapped="TitleBar_DoubleTapped">
-          <TextBlock Text="Kenshi Nexus" FontSize="11" Foreground="#3a3a3a"
+          <TextBlock Text="Kenshi Multi" FontSize="11" Foreground="#3a3a3a"
                      HorizontalAlignment="Center" VerticalAlignment="Center"
                      IsHitTestVisible="False" />
         </Border>
@@ -29,13 +29,21 @@
         <!-- Windows-style caption buttons (right side) -->
         <StackPanel Grid.Column="1" Orientation="Horizontal">
           <Button Classes="caption-btn" Click="OnMinimize" ToolTip.Tip="Minimize">
-            <TextBlock Text="&#x2014;" FontSize="10" />
+            <Path Data="M0,0 L10,0" Stroke="{Binding $parent[Button].Foreground}"
+                  StrokeThickness="1" Width="10" Height="1"
+                  HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Button>
           <Button Classes="caption-btn" Click="OnMaximize" ToolTip.Tip="Maximize">
-            <TextBlock Text="&#x25A1;" FontSize="11" />
+            <Path Data="M0,0 L10,0 L10,10 L0,10 Z" Stroke="{Binding $parent[Button].Foreground}"
+                  StrokeThickness="1" Fill="Transparent" Width="10" Height="10"
+                  Stretch="Uniform"
+                  HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Button>
           <Button Classes="caption-btn close" Click="OnClose" ToolTip.Tip="Close">
-            <TextBlock Text="&#x2715;" FontSize="10" />
+            <Path Data="M0,0 L10,10 M10,0 L0,10" Stroke="{Binding $parent[Button].Foreground}"
+                  StrokeThickness="1" Width="10" Height="10"
+                  Stretch="Uniform" StrokeLineCap="Round"
+                  HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Button>
         </StackPanel>
       </Grid>
@@ -50,7 +58,7 @@
           <Border DockPanel.Dock="Top" BorderBrush="#262626" BorderThickness="0,0,0,1"
                   Padding="16,14,16,12">
             <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Grid.Column="0" Text="Kenshi Nexus" FontSize="13" FontWeight="SemiBold" Foreground="#F0F0F0" />
+              <TextBlock Grid.Column="0" Text="Kenshi Multi" FontSize="13" FontWeight="SemiBold" Foreground="#F0F0F0" />
               <TextBlock Grid.Column="1" Text="v0.2" FontSize="11" Foreground="#3a3a3a" VerticalAlignment="Center" />
             </Grid>
           </Border>
@@ -134,5 +142,100 @@
         <ContentControl Content="{Binding CurrentPage}" Margin="28,24,28,24" />
       </Border>
     </Grid>
+
+    <!-- Join Modal Overlay (full-window) -->
+    <Border Name="JoinOverlay" Background="#99000000" IsVisible="{Binding Play.IsJoinModalOpen}"
+            Grid.RowSpan="2"
+            HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+      <Border Background="#1a1a1a" CornerRadius="6" Width="300"
+              HorizontalAlignment="Center" VerticalAlignment="Center"
+              BorderBrush="#303030" BorderThickness="1">
+        <StackPanel>
+          <Border BorderBrush="#262626" BorderThickness="0,0,0,1" Padding="16,14,16,12">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="Join session" FontSize="13" FontWeight="Medium" Foreground="#F0F0F0" />
+              <Button Grid.Column="1" Classes="modal-close" Content="&#x2715;"
+                      Command="{Binding Play.CloseJoinModalCommand}" />
+            </Grid>
+          </Border>
+          <StackPanel Margin="16">
+            <Grid ColumnDefinitions="*,8,80">
+              <StackPanel Grid.Column="0">
+                <TextBlock Text="Host IP" FontSize="11" Foreground="#6b6b6b" Margin="0,0,0,5" />
+                <TextBox Text="{Binding Play.JoinIP}" Watermark="192.168.x.x"
+                         Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
+              </StackPanel>
+              <StackPanel Grid.Column="2">
+                <TextBlock Text="Port" FontSize="11" Foreground="#6b6b6b" Margin="0,0,0,5" />
+                <TextBox Text="{Binding Play.JoinPort}" Watermark="7777"
+                         Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
+              </StackPanel>
+            </Grid>
+            <TextBlock Text="Password" FontSize="11" Foreground="#6b6b6b" Margin="0,12,0,0" />
+            <TextBlock Text="(optional)" FontSize="11" Foreground="#3a3a3a" Margin="4,0,0,5" />
+            <TextBox Text="{Binding Play.JoinPassword}" Watermark="Leave empty if none"
+                     PasswordChar="&#x2022;" Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
+          </StackPanel>
+          <Border BorderBrush="#262626" BorderThickness="0,1,0,0" Padding="16,12">
+            <StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Right">
+              <Button Classes="ghost" Height="28" Padding="14,0" FontSize="11"
+                      Content="Cancel" VerticalContentAlignment="Center"
+                      Command="{Binding Play.CloseJoinModalCommand}" />
+              <Button Classes="accent" Height="28" Padding="14,0" FontSize="11"
+                      Content="Connect" VerticalContentAlignment="Center"
+                      Command="{Binding Play.ConnectCommand}"
+                      IsEnabled="{Binding !Play.IsPlaying}" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Border>
+    </Border>
+
+    <!-- Host Modal Overlay (full-window) -->
+    <Border Name="HostOverlay" Background="#99000000" IsVisible="{Binding Play.IsHostModalOpen}"
+            Grid.RowSpan="2"
+            HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+      <Border Background="#1a1a1a" CornerRadius="6" Width="300"
+              HorizontalAlignment="Center" VerticalAlignment="Center"
+              BorderBrush="#303030" BorderThickness="1">
+        <StackPanel>
+          <Border BorderBrush="#262626" BorderThickness="0,0,0,1" Padding="16,14,16,12">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="Host a server" FontSize="13" FontWeight="Medium" Foreground="#F0F0F0" />
+              <Button Grid.Column="1" Classes="modal-close" Content="&#x2715;"
+                      Command="{Binding Play.CloseHostModalCommand}" />
+            </Grid>
+          </Border>
+          <StackPanel Margin="16">
+            <Grid ColumnDefinitions="*,8,80">
+              <StackPanel Grid.Column="0">
+                <TextBlock Text="Port" FontSize="11" Foreground="#6b6b6b" Margin="0,0,0,5" />
+                <TextBox Text="{Binding Play.HostPort}" Watermark="7777"
+                         Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
+              </StackPanel>
+              <StackPanel Grid.Column="2">
+                <TextBlock Text="Max players" FontSize="11" Foreground="#6b6b6b" Margin="0,0,0,5" />
+                <TextBox Text="{Binding Play.HostMaxPlayers}" Watermark="4"
+                         Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
+              </StackPanel>
+            </Grid>
+            <TextBlock Text="Password" FontSize="11" Foreground="#6b6b6b" Margin="0,12,0,0" />
+            <TextBlock Text="(optional)" FontSize="11" Foreground="#3a3a3a" Margin="4,0,0,5" />
+            <TextBox Text="{Binding Play.HostPassword}" Watermark="Leave empty for open session"
+                     PasswordChar="&#x2022;" Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
+          </StackPanel>
+          <Border BorderBrush="#262626" BorderThickness="0,1,0,0" Padding="16,12">
+            <StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Right">
+              <Button Classes="ghost" Height="28" Padding="14,0" FontSize="11"
+                      Content="Cancel" VerticalContentAlignment="Center"
+                      Command="{Binding Play.CloseHostModalCommand}" />
+              <Button Classes="accent" Height="28" Padding="14,0" FontSize="11"
+                      Content="Start server" VerticalContentAlignment="Center"
+                      Command="{Binding Play.StartServerCommand}" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Border>
+    </Border>
   </Grid>
 </Window>

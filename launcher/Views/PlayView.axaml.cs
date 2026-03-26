@@ -2,7 +2,7 @@ using System;
 using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Data.Converters;
-using Avalonia.Input;
+
 using Avalonia.Media;
 using KenshiLauncher.ViewModels;
 
@@ -33,23 +33,6 @@ public partial class PlayView : UserControl
             }
         };
 
-        // Click-to-dismiss for overlay backgrounds
-        var joinOverlay = this.FindControl<Border>("JoinOverlay");
-        if (joinOverlay != null)
-            joinOverlay.PointerPressed += OnOverlayPointerPressed;
-
-        var hostOverlay = this.FindControl<Border>("HostOverlay");
-        if (hostOverlay != null)
-            hostOverlay.PointerPressed += OnOverlayPointerPressed;
-    }
-
-    private void OnOverlayPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (e.Source == sender && DataContext is PlayViewModel vm)
-        {
-            vm.CloseJoinModalCommand.Execute(null);
-            vm.CloseHostModalCommand.Execute(null);
-        }
     }
 
     private void UpdateStatusDot(DllStatus status)

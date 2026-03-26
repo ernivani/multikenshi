@@ -50,6 +50,13 @@ public partial class PlayViewModel : ObservableObject
     [ObservableProperty]
     private bool _isPlaying;
 
+    // Install feedback (shown inline below Install button)
+    [ObservableProperty]
+    private string _installMessage = "";
+
+    [ObservableProperty]
+    private bool _isInstalling;
+
     public string StatusText
     {
         get
@@ -246,7 +253,75 @@ public partial class PlayViewModel : ObservableObject
     [RelayCommand]
     private void InstallDll()
     {
-        _main.PostLog("DLL installation not yet implemented.");
+        IsInstalling = true;
+        InstallMessage = "Searching for DLL...";
+
+        var dest = ProcessLauncher.GetDllPath();
+        var source = FindLocalDll();
+
+        if (source == null)
+        {
+            InstallMessage = "DLL not found — build the C++ project first";
+            IsInstalling = false;
+            return;
+        }
+
+        try
+        {
+            InstallMessage = "Copying DLL...";
+            System.IO.File.Copy(source, dest, overwrite: true);
+            InstallMessage = "Installed successfully";
+            _main.PostLog($"Installed DLL from {source}");
+            RefreshDllStatus();
+            ClearInstallMessageAfterDelay();
+        }
+        catch (System.Exception ex)
+        {
+            InstallMessage = $"Failed: {ex.Message}";
+            _main.PostLog($"ERROR: Failed to copy DLL — {ex.Message}");
+        }
+        finally
+        {
+            IsInstalling = false;
+        }
+    }
+
+    private async void ClearInstallMessageAfterDelay()
+    {
+        await Task.Delay(3000);
+        InstallMessage = "";
+    }
+
+    private string? FindLocalDll()
+    {
+        // 1. Check the vcxproj output location (Kenshi directory)
+        if (!string.IsNullOrEmpty(_config.KenshiPath))
+        {
+            var kenshiDll = System.IO.Path.Combine(_config.KenshiPath, "kenshi_multiplayer.dll");
+            if (System.IO.File.Exists(kenshiDll))
+                return kenshiDll;
+        }
+
+        // 2. Walk up from the launcher exe to find the repo,
+        //    check C++ build output + any manual drops.
+        var dir = System.IO.Path.GetDirectoryName(
+            System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName);
+
+        while (dir != null)
+        {
+            var candidate = System.IO.Path.Combine(
+                dir, "kenshi_multiplayer", "x64", "Release", "kenshi_multiplayer.dll");
+            if (System.IO.File.Exists(candidate))
+                return candidate;
+
+            var direct = System.IO.Path.Combine(dir, "kenshi_multiplayer.dll");
+            if (System.IO.File.Exists(direct))
+                return direct;
+
+            dir = System.IO.Path.GetDirectoryName(dir);
+        }
+
+        return null;
     }
 
     public void RefreshDllStatus()

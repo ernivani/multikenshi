@@ -2,9 +2,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:KenshiLauncher.ViewModels"
              xmlns:views="using:KenshiLauncher.Views"
-             x:Class="KenshiLauncher.App">
+             x:Class="KenshiLauncher.App"
+             RequestedThemeVariant="Dark">
   <Application.Styles>
-    <FluentTheme />
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Dark"
+            Accent="#c8a052" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
     <StyleInclude Source="avares://KenshiLauncher/Themes/KenshiTheme.axaml" />
   </Application.Styles>
 

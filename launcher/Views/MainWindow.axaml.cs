@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using KenshiLauncher.ViewModels;
 
 namespace KenshiLauncher.Views;
 
@@ -9,6 +10,23 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        var joinOverlay = this.FindControl<Border>("JoinOverlay");
+        if (joinOverlay != null)
+            joinOverlay.PointerPressed += OnOverlayPointerPressed;
+
+        var hostOverlay = this.FindControl<Border>("HostOverlay");
+        if (hostOverlay != null)
+            hostOverlay.PointerPressed += OnOverlayPointerPressed;
+    }
+
+    private void OnOverlayPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Source == sender && DataContext is MainViewModel vm)
+        {
+            vm.Play.CloseJoinModalCommand.Execute(null);
+            vm.Play.CloseHostModalCommand.Execute(null);
+        }
     }
 
     private void TitleBar_PointerPressed(object? sender, PointerPressedEventArgs e)
