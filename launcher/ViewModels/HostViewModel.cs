@@ -1,4 +1,5 @@
 using System;
+using System.Collections.ObjectModel;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -23,6 +24,12 @@ public partial class HostViewModel : ObservableObject
     [ObservableProperty]
     private int _playerCount;
 
+    [ObservableProperty]
+    private string _commandText = "";
+
+    public ObservableCollection<ClientInfo> Clients => _server.Clients;
+    public ObservableCollection<string> ServerLog => _server.ServerLog;
+
     public HostViewModel(ConfigManager config, RelayServer server, MainViewModel main)
     {
         _config = config;
@@ -42,7 +49,7 @@ public partial class HostViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ToggleServer()
+    public void ToggleServer()
     {
         if (_server.IsRunning)
         {
@@ -63,5 +70,13 @@ public partial class HostViewModel : ObservableObject
             _server.Start(port);
             IsRunning = true;
         }
+    }
+
+    [RelayCommand]
+    private void SendCommand()
+    {
+        if (string.IsNullOrWhiteSpace(CommandText)) return;
+        _server.ExecuteCommand(CommandText);
+        CommandText = "";
     }
 }

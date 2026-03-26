@@ -1,8 +1,16 @@
 # Kenshi Multiplayer DLL — GNU Make + MSVC
-# Run from a VS Developer Command Prompt:
 #   make           (Release build)
 #   make DEBUG=1   (Debug build)
 #   make clean
+
+# Auto-detect VS environment if cl.exe is not on PATH
+VCVARS := "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+NEED_ENV := $(shell where cl >nul 2>&1 && echo 0 || echo 1)
+ifeq ($(NEED_ENV),1)
+  SETUP := call $(VCVARS) >nul 2>&1 &&
+else
+  SETUP :=
+endif
 
 OUTDIR  := x64/Release
 INTDIR  := x64/Release/obj
@@ -50,15 +58,15 @@ $(INTDIR):
 
 # Precompiled header (must build first)
 $(INTDIR)/pch.obj: pch.cpp | $(INTDIR)
-	$(CC) $(CFLAGS) /Yc"pch.h" /c $< /Fo"$@"
+	$(SETUP) $(CC) $(CFLAGS) /Yc"pch.h" /c $< /Fo"$@"
 
 # All other .cpp files use the PCH
 $(INTDIR)/%.obj: %.cpp $(INTDIR)/pch.obj | $(INTDIR)
-	$(CC) $(CFLAGS) /Yu"pch.h" /c $< /Fo"$@"
+	$(SETUP) $(CC) $(CFLAGS) /Yu"pch.h" /c $< /Fo"$@"
 
 # Link
 $(TARGET): $(OBJECTS)
-	$(LD) $(LDFLAGS) $(OBJECTS) $(LIBS)
+	$(SETUP) $(LD) $(LDFLAGS) $(OBJECTS) $(LIBS)
 
 clean:
 	@if exist "$(subst /,\,$(OUTDIR))" rd /s /q "$(subst /,\,$(OUTDIR))"

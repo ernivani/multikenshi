@@ -1,0 +1,128 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:KenshiLauncher.ViewModels"
+        xmlns:svc="using:KenshiLauncher.Services"
+        x:Class="KenshiLauncher.Views.HostWindow"
+        x:DataType="vm:HostViewModel"
+        Title="Kenshi Multi — Server"
+        Width="600" Height="500"
+        MinWidth="400" MinHeight="300"
+        Background="#0F0F0F"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="36"
+        SystemDecorations="Full">
+
+  <Grid RowDefinitions="36,*">
+    <!-- Titlebar -->
+    <Border Grid.Row="0" Background="#1a1a1a"
+            BorderBrush="#262626" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="*,Auto">
+        <Border Grid.Column="0" Background="Transparent"
+                PointerPressed="TitleBar_PointerPressed">
+          <TextBlock Text="Server" FontSize="11" Foreground="#3a3a3a"
+                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                     IsHitTestVisible="False" />
+        </Border>
+        <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <Button Classes="caption-btn close" Click="OnClose" ToolTip.Tip="Stop &amp; Close">
+            <Path Data="M0,0 L10,10 M10,0 L0,10" Stroke="{Binding $parent[Button].Foreground}"
+                  StrokeThickness="1" Width="10" Height="10"
+                  Stretch="Uniform" StrokeLineCap="Round"
+                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Button>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Content -->
+    <Grid Grid.Row="1" RowDefinitions="Auto,Auto,1,*,Auto">
+
+      <!-- Status bar -->
+      <Border Grid.Row="0" Background="#1a1a1a" Padding="16,10">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+            <Ellipse Name="StatusDot" Width="7" Height="7" VerticalAlignment="Center" />
+            <TextBlock Name="StatusText" FontSize="12" Foreground="#F0F0F0" VerticalAlignment="Center" />
+            <Border Background="#222222" CornerRadius="8" Padding="7,2" Margin="6,0,0,0"
+                    VerticalAlignment="Center">
+              <TextBlock FontSize="10" Foreground="#6b6b6b" VerticalAlignment="Center">
+                <TextBlock.Text>
+                  <MultiBinding StringFormat="{}{0} players">
+                    <Binding Path="PlayerCount" />
+                  </MultiBinding>
+                </TextBlock.Text>
+              </TextBlock>
+            </Border>
+          </StackPanel>
+          <Button Grid.Column="1" Classes="danger" Height="26" Padding="12,0" FontSize="11"
+                  Content="Stop" VerticalContentAlignment="Center"
+                  Command="{Binding ToggleServerCommand}"
+                  IsVisible="{Binding IsRunning}" />
+        </Grid>
+      </Border>
+
+      <!-- Player list -->
+      <Border Grid.Row="1" Padding="0,0,0,0" MaxHeight="140">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding Clients}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="svc:ClientInfo">
+                <Border BorderBrush="#262626" BorderThickness="0,0,0,1" Padding="16,6">
+                  <Grid ColumnDefinitions="30,*,Auto">
+                    <TextBlock Grid.Column="0" FontSize="11" Foreground="#6b6b6b"
+                               VerticalAlignment="Center">
+                      <TextBlock.Text>
+                        <MultiBinding StringFormat="#{0}">
+                          <Binding Path="Id" />
+                        </MultiBinding>
+                      </TextBlock.Text>
+                    </TextBlock>
+                    <TextBlock Grid.Column="1" Text="{Binding IP}" FontSize="11"
+                               Foreground="#F0F0F0" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" FontSize="10" Foreground="#3a3a3a"
+                               VerticalAlignment="Center" Name="TimeText" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Border>
+
+      <!-- Divider -->
+      <Border Grid.Row="2" Background="#262626" />
+
+      <!-- Log panel -->
+      <ScrollViewer Grid.Row="3" Name="LogScroller"
+                    VerticalScrollBarVisibility="Auto"
+                    Padding="0">
+        <ItemsControl Name="LogItems" ItemsSource="{Binding ServerLog}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding}" FontSize="11" FontFamily="Consolas,Courier New,monospace"
+                         Foreground="#6b6b6b" Padding="16,2" TextWrapping="Wrap" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+      <!-- Command bar -->
+      <Border Grid.Row="4" Background="#1a1a1a" BorderBrush="#262626" BorderThickness="0,1,0,0"
+              Padding="12,8">
+        <Grid ColumnDefinitions="*,8,Auto">
+          <TextBox Grid.Column="0" Text="{Binding CommandText}"
+                   Watermark="Type a command... (/help for list)"
+                   FontSize="12" FontFamily="Consolas,Courier New,monospace"
+                   Padding="10,6" Height="30"
+                   Background="#0f0f0f"
+                   Name="CommandInput"
+                   KeyDown="CommandInput_KeyDown" />
+          <Button Grid.Column="2" Classes="accent" Height="30" Padding="14,0" FontSize="11"
+                  Content="Send" VerticalContentAlignment="Center"
+                  Command="{Binding SendCommandCommand}" />
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</Window>

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -14,6 +16,8 @@ public partial class PlayViewModel : ObservableObject
     private readonly MainViewModel _main;
     private readonly RelayServer _server;
     private readonly HostViewModel _host;
+    private Process? _kenshiProcess;
+    private Timer? _processTimer;
 
     // DLL status
     [ObservableProperty]
@@ -185,6 +189,7 @@ public partial class PlayViewModel : ObservableObject
         }
 
         IsPlaying = true;
+        bool injected = false;
 
         try
         {
@@ -226,6 +231,8 @@ public partial class PlayViewModel : ObservableObject
                 if (DllInjector.Inject(pid, dllPath, _main.PostLog))
                 {
                     _main.PostLog("DLL injected successfully!");
+                    _kenshiProcess = process;
+                    injected = true;
                 }
                 else
                 {
@@ -235,8 +242,82 @@ public partial class PlayViewModel : ObservableObject
         }
         finally
         {
-            IsPlaying = false;
+            if (injected)
+                StartProcessMonitor();
+            else
+                IsPlaying = false;
         }
+    }
+
+    [RelayCommand]
+    private void StopGame()
+    {
+        bool killed = false;
+
+        // Try the stored handle first
+        if (_kenshiProcess != null && !_kenshiProcess.HasExited)
+        {
+            try
+            {
+                _kenshiProcess.Kill();
+                killed = true;
+            }
+            catch { }
+        }
+
+        // Fallback: find by name (handles the case where stored handle is stale)
+        if (!killed)
+        {
+            var proc = ProcessLauncher.FindKenshiProcess();
+            if (proc != null)
+            {
+                try
+                {
+                    proc.Kill();
+                    killed = true;
+                }
+                catch (System.Exception ex)
+                {
+                    _main.PostLog($"ERROR: Could not stop Kenshi — {ex.Message}");
+                }
+            }
+        }
+
+        if (killed)
+            _main.PostLog("Kenshi process terminated.");
+
+        CleanupProcess();
+    }
+
+    private void StartProcessMonitor()
+    {
+        _processTimer?.Dispose();
+        _processTimer = new Timer(_ =>
+        {
+            bool exited = _kenshiProcess == null || _kenshiProcess.HasExited;
+            if (!exited)
+            {
+                // Also check by name in case our handle went stale
+                exited = ProcessLauncher.FindKenshiProcess() == null;
+            }
+
+            if (exited)
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    _main.PostLog("Kenshi has exited.");
+                    CleanupProcess();
+                });
+            }
+        }, null, 2000, 2000);
+    }
+
+    private void CleanupProcess()
+    {
+        _processTimer?.Dispose();
+        _processTimer = null;
+        _kenshiProcess = null;
+        IsPlaying = false;
     }
 
     [RelayCommand]
@@ -250,6 +331,13 @@ public partial class PlayViewModel : ObservableObject
         // Delegate to HostViewModel's toggle logic
         _host.ServerPort = HostPort;
         _host.ToggleServerCommand.Execute(null);
+
+        // Open the dedicated server window
+        if (_host.IsRunning)
+        {
+            var window = new Views.HostWindow { DataContext = _host };
+            window.Show();
+        }
     }
 
     [RelayCommand]
@@ -276,6 +364,7 @@ public partial class PlayViewModel : ObservableObject
             InstallMessage = "Installed successfully";
             _main.PostLog($"Installed DLL from {source}");
             RefreshDllStatus();
+            _main.Settings.RefreshStatus();
             ClearInstallMessageAfterDelay();
         }
         catch (System.Exception ex)

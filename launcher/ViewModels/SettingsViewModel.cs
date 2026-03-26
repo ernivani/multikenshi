@@ -29,14 +29,14 @@ public partial class SettingsViewModel : ObservableObject
         _config = config;
         _main = main;
         _kenshiPath = config.KenshiPath;
-        UpdateStatus();
+        RefreshStatus();
     }
 
     partial void OnKenshiPathChanged(string value)
     {
         _config.KenshiPath = value;
         _config.Save();
-        UpdateStatus();
+        RefreshStatus();
     }
 
     [RelayCommand]
@@ -99,7 +99,7 @@ public partial class SettingsViewModel : ObservableObject
             }
         }
 
-        UpdateStatus();
+        RefreshStatus();
         _main.Play.RefreshDllStatus();
 
         if (removed > 0)
@@ -121,7 +121,7 @@ public partial class SettingsViewModel : ObservableObject
         UninstallMessage = "";
     }
 
-    private void UpdateStatus()
+    public void RefreshStatus()
     {
         if (!string.IsNullOrEmpty(KenshiPath))
         {

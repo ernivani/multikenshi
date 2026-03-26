@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -9,6 +11,8 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace KenshiLauncher.Services;
+
+public record ClientInfo(int Id, string IP, DateTime ConnectedAt);
 
 public class RelayServer
 {
@@ -20,6 +24,7 @@ public class RelayServer
     private TcpListener? _listener;
     private CancellationTokenSource? _cts;
     private readonly List<TcpClient> _clients = new();
+    private readonly Dictionary<int, TcpClient> _clientMap = new();
     private readonly object _lock = new();
     private int _clientIdCounter = 1;
 
@@ -29,6 +34,8 @@ public class RelayServer
 
     public bool IsRunning { get; private set; }
     public Action<string>? Log { get; set; }
+    public ObservableCollection<ClientInfo> Clients { get; } = new();
+    public ObservableCollection<string> ServerLog { get; } = new();
 
     public int PlayerCount
     {
@@ -43,6 +50,12 @@ public class RelayServer
         _plr2 = (-5139.11f, 158.019f, 345.631f);
         _speed = 1.0f;
         _clientIdCounter = 1;
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            Clients.Clear();
+            ServerLog.Clear();
+        });
 
         _cts = new CancellationTokenSource();
         IsRunning = true;
@@ -66,9 +79,11 @@ public class RelayServer
                 try { c.Close(); } catch { }
             }
             _clients.Clear();
+            _clientMap.Clear();
         }
 
-        Log?.Invoke("Server stopped.");
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => Clients.Clear());
+        PostLog("Server stopped.");
     }
 
     private async Task ListenLoop(int port, CancellationToken ct)
@@ -78,11 +93,11 @@ public class RelayServer
             _listener = new TcpListener(IPAddress.Any, port);
             _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             _listener.Start(5);
-            Log?.Invoke($"Server listening on port {port}.");
+            PostLog($"Server listening on port {port}.");
         }
         catch (Exception ex)
         {
-            Log?.Invoke($"ERROR: Bind failed on port {port}. {ex.Message}");
+            PostLog($"ERROR: Bind failed on port {port}. {ex.Message}");
             IsRunning = false;
             return;
         }
@@ -100,7 +115,7 @@ public class RelayServer
         catch (Exception ex)
         {
             if (IsRunning)
-                Log?.Invoke($"ERROR: Listen error: {ex.Message}");
+                PostLog($"ERROR: Listen error: {ex.Message}");
         }
         finally
         {
@@ -111,15 +126,22 @@ public class RelayServer
     private async Task HandleClient(TcpClient client, CancellationToken ct)
     {
         int clientId;
+        string clientIP = "unknown";
         lock (_lock)
         {
             _clients.Add(client);
             clientId = _clientIdCounter++;
             if (_clientIdCounter >= Factions.Length)
                 _clientIdCounter = 1;
+            _clientMap[clientId] = client;
+
+            var ep = client.Client.RemoteEndPoint as IPEndPoint;
+            if (ep != null) clientIP = ep.Address.ToString();
         }
 
-        Log?.Invoke("Client connected.");
+        var info = new ClientInfo(clientId, clientIP, DateTime.Now);
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => Clients.Add(info));
+        PostLog($"Client {clientId} connected from {clientIP}.");
 
         try
         {
@@ -201,9 +223,15 @@ public class RelayServer
             lock (_lock)
             {
                 _clients.Remove(client);
+                _clientMap.Remove(clientId);
             }
             try { client.Close(); } catch { }
-            Log?.Invoke("Client disconnected.");
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                var existing = Clients.FirstOrDefault(c => c.Id == clientId);
+                if (existing != null) Clients.Remove(existing);
+            });
+            PostLog($"Client {clientId} disconnected.");
         }
     }
 
@@ -222,4 +250,66 @@ public class RelayServer
 
     private static string FormatVector((float x, float y, float z) v)
         => $"{v.x.ToString(CultureInfo.InvariantCulture)},{v.y.ToString(CultureInfo.InvariantCulture)},{v.z.ToString(CultureInfo.InvariantCulture)}";
+
+    private void PostLog(string message)
+    {
+        Log?.Invoke(message);
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            ServerLog.Add(message);
+            if (ServerLog.Count > 500)
+                ServerLog.RemoveAt(0);
+        });
+    }
+
+    public void ExecuteCommand(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command)) return;
+
+        var parts = command.Trim().Split(' ', 2);
+        var cmd = parts[0].ToLowerInvariant();
+        var arg = parts.Length > 1 ? parts[1].Trim() : "";
+
+        switch (cmd)
+        {
+            case "/speed":
+                if (float.TryParse(arg, NumberStyles.Float, CultureInfo.InvariantCulture, out var s) && s > 0)
+                {
+                    _speed = s;
+                    PostLog($"Speed set to {s}.");
+                }
+                else
+                    PostLog("Usage: /speed <value>");
+                break;
+
+            case "/kick":
+                if (int.TryParse(arg, out var kickId))
+                {
+                    TcpClient? target;
+                    lock (_lock) { _clientMap.TryGetValue(kickId, out target); }
+                    if (target != null)
+                    {
+                        try { target.Close(); } catch { }
+                        PostLog($"Kicked client {kickId}.");
+                    }
+                    else
+                        PostLog($"Client {kickId} not found.");
+                }
+                else
+                    PostLog("Usage: /kick <id>");
+                break;
+
+            case "/stop":
+                Stop();
+                break;
+
+            case "/help":
+                PostLog("Commands: /speed <value>, /kick <id>, /stop, /help");
+                break;
+
+            default:
+                PostLog($"Unknown command: {cmd}");
+                break;
+        }
+    }
 }

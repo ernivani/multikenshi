@@ -35,10 +35,25 @@
 
           <!-- Right: action buttons stacked vertically -->
           <StackPanel Grid.Column="1" Spacing="6">
-            <!-- Play button (when ready) -->
+            <!-- Stop button (when playing) -->
+            <Button Classes="danger" Height="32" HorizontalAlignment="Stretch"
+                    Command="{Binding StopGameCommand}"
+                    IsVisible="{Binding IsPlaying}"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="6"
+                          HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Path Data="M6,6 L18,6 L18,18 L6,18 Z"
+                      Fill="#9a3a3a" Stretch="Uniform" Width="9" Height="9"
+                      VerticalAlignment="Center" />
+                <TextBlock Text="Stop" FontSize="12" FontWeight="SemiBold" Foreground="#9a3a3a"
+                           VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <!-- Play button (when DLL ready and not playing) -->
             <Button Name="PlayButton" Classes="accent" Height="32" HorizontalAlignment="Stretch"
                     Command="{Binding OpenJoinModalCommand}"
                     IsVisible="{Binding IsPlayReady}"
+                    IsEnabled="{Binding !IsPlaying}"
                     HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
               <StackPanel Orientation="Horizontal" Spacing="6"
                           HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -49,7 +64,7 @@
                            VerticalAlignment="Center" />
               </StackPanel>
             </Button>
-            <!-- Install button (when not ready) -->
+            <!-- Install button (when DLL not ready) -->
             <Button Classes="accent-outline" Height="32" HorizontalAlignment="Stretch"
                     Command="{Binding InstallDllCommand}"
                     IsVisible="{Binding !IsPlayReady}"
