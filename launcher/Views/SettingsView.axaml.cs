@@ -6,8 +6,8 @@ namespace KenshiLauncher.Views;
 
 public partial class SettingsView : UserControl
 {
-    private static readonly SolidColorBrush GreenBrush = new(Color.Parse("#3D9E6A"));
-    private static readonly SolidColorBrush RedBrush = new(Color.Parse("#9E3D3D"));
+    private static readonly SolidColorBrush GreenBrush = new(Color.Parse("#4a9e6a"));
+    private static readonly SolidColorBrush RedBrush = new(Color.Parse("#9a3a3a"));
 
     public SettingsView()
     {

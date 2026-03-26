@@ -6,56 +6,215 @@
              x:DataType="vm:PlayViewModel">
 
   <UserControl.Resources>
-    <views:LogColorConverter x:Key="LogColorConv" />
+    <views:TagBackgroundConverter x:Key="TagBgConv" />
+    <views:TagForegroundConverter x:Key="TagFgConv" />
   </UserControl.Resources>
 
-  <DockPanel>
-    <!-- DLL status footer -->
-    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0" Spacing="8">
-      <Ellipse Name="DllDot" Width="6" Height="6" VerticalAlignment="Center" Fill="#9E3D3D" />
-      <TextBlock Name="DllStatusText" FontSize="12" Foreground="#444444" VerticalAlignment="Center" />
-    </StackPanel>
-
+  <!-- Root Grid for modal overlay support -->
+  <Grid>
     <!-- Main content -->
-    <StackPanel>
-      <TextBlock Text="Play" FontSize="20" FontWeight="Bold" Foreground="#F0F0F0" />
-      <TextBlock Text="Connect to a server and launch Kenshi" FontSize="12" Foreground="#444444" Margin="0,4,0,20" />
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
+      <StackPanel Spacing="28">
 
-      <!-- Server Address -->
-      <TextBlock Text="SERVER ADDRESS" FontSize="12" Foreground="#888888" Margin="0,0,0,4" />
-      <TextBox Text="{Binding ClientIP}" Watermark="127.0.0.1" />
+        <!-- Version row -->
+        <Grid ColumnDefinitions="*,136">
+          <!-- Left: version + status -->
+          <StackPanel Grid.Column="0">
+            <StackPanel Orientation="Horizontal" Spacing="0">
+              <TextBlock Text="0.2" FontSize="24" FontWeight="Light" Foreground="#F0F0F0"
+                         VerticalAlignment="Bottom" />
+              <TextBlock Text="alpha" FontSize="12" Foreground="#6b6b6b"
+                         Margin="4,0,0,6" VerticalAlignment="Bottom" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,6,0,0">
+              <Ellipse Name="StatusDot" Width="5" Height="5" VerticalAlignment="Center" />
+              <TextBlock Name="StatusLabel" FontSize="11" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Name="StatusSubLabel" FontSize="10" Foreground="#3a3a3a" Margin="0,3,0,0" />
+          </StackPanel>
 
-      <TextBlock Text="PORT" FontSize="12" Foreground="#888888" Margin="0,14,0,4" />
-      <TextBox Text="{Binding ClientPort}" Watermark="8080" Width="180" HorizontalAlignment="Left" />
+          <!-- Right: action buttons stacked vertically -->
+          <StackPanel Grid.Column="1" Spacing="6">
+            <!-- Play button (when ready) -->
+            <Button Name="PlayButton" Classes="accent" Height="32" HorizontalAlignment="Stretch"
+                    Command="{Binding OpenJoinModalCommand}"
+                    IsVisible="{Binding IsPlayReady}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Path Data="M5,3 L19,12 L5,21 Z"
+                      Stroke="#0a0600" StrokeThickness="2.2" Fill="Transparent"
+                      Stretch="Uniform" Width="9" Height="9" VerticalAlignment="Center" />
+                <TextBlock Text="Play" FontSize="12" FontWeight="SemiBold" Foreground="#0a0600" />
+              </StackPanel>
+            </Button>
+            <!-- Install button (when not ready) -->
+            <Button Classes="accent-outline" Height="32" HorizontalAlignment="Stretch"
+                    Command="{Binding InstallDllCommand}"
+                    IsVisible="{Binding !IsPlayReady}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Path Data="M8,17 L12,21 L16,17 M12,12 L12,21 M20.88,18.09 A5,5 0 0,0 18,9 L16.74,9 A8,8 0 1,0 3,16.29"
+                      Stroke="#c8a052" StrokeThickness="1.8" Fill="Transparent"
+                      Stretch="Uniform" Width="10" Height="10" VerticalAlignment="Center"
+                      StrokeLineCap="Round" />
+                <TextBlock Text="Install" FontSize="12" FontWeight="Medium" Foreground="#c8a052" />
+              </StackPanel>
+            </Button>
+            <!-- Host button -->
+            <Button Name="HostButton" Classes="ghost" Height="30" HorizontalAlignment="Stretch"
+                    Command="{Binding OpenHostModalCommand}"
+                    IsEnabled="{Binding IsPlayReady}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Path Data="M22,12 L18,12 L15,21 L9,3 L6,12 L2,12"
+                      Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.6" Fill="Transparent"
+                      Stretch="Uniform" Width="9" Height="9" VerticalAlignment="Center"
+                      StrokeLineCap="Round" />
+                <TextBlock Text="Host a server" FontSize="12"
+                           Foreground="{Binding $parent[Button].Foreground}" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+        </Grid>
 
-      <!-- Play Multiplayer button -->
-      <Button Classes="accent" Height="48" HorizontalAlignment="Stretch" Margin="0,24,0,0"
-              Command="{Binding PlayMultiplayerCommand}"
-              IsEnabled="{Binding !IsPlaying}"
-              Name="PlayButton" Content="PLAY MULTIPLAYER" />
+        <!-- Divider -->
+        <Border Height="1" Background="#262626" />
 
-      <!-- Singleplayer button -->
-      <Button Classes="ghost" Height="48" HorizontalAlignment="Stretch" Margin="0,8,0,0"
-              Content="SINGLEPLAYER"
-              Command="{Binding SingleplayerCommand}"
-              IsVisible="{Binding !IsPlaying}" />
+        <!-- Changelog -->
+        <ItemsControl ItemsSource="{Binding Changelog}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ChangelogEntry">
+              <Border BorderBrush="#262626" BorderThickness="0,0,0,1" Padding="0,10,0,10">
+                <Grid ColumnDefinitions="36,*">
+                  <!-- Version column -->
+                  <StackPanel Grid.Column="0" Margin="0,1,0,0">
+                    <TextBlock Text="{Binding Version}" FontSize="11" FontWeight="Medium" Foreground="#6b6b6b" />
+                    <TextBlock Text="{Binding Date}" FontSize="10" Foreground="#3a3a3a" Margin="0,2,0,0" />
+                  </StackPanel>
+                  <!-- Lines column -->
+                  <ItemsControl Grid.Column="1" ItemsSource="{Binding Lines}" Margin="16,0,0,0">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ChangelogLine">
+                        <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,2.5">
+                          <Border Background="{Binding Tag, Converter={StaticResource TagBgConv}}"
+                                  CornerRadius="3" Padding="5,1" MinWidth="28"
+                                  HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding Tag}" FontSize="9" FontWeight="Medium"
+                                       Foreground="{Binding Tag, Converter={StaticResource TagFgConv}}"
+                                       HorizontalAlignment="Center" />
+                          </Border>
+                          <TextBlock Text="{Binding Text}" FontSize="11" Foreground="#6b6b6b"
+                                     VerticalAlignment="Center" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
 
-      <!-- Log panel -->
-      <Border Background="#161616" CornerRadius="6" Margin="0,16,0,0"
-              BorderBrush="#2A2A2A" BorderThickness="1"
-              MinHeight="120" MaxHeight="300">
-        <ScrollViewer Name="PlayLogScroll" Padding="14,10">
-          <ItemsControl ItemsSource="{Binding $parent[Window].DataContext.LogLines}">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:LogEntry">
-                <TextBlock Text="{Binding Text, StringFormat='&gt; {0}'}"
-                           Foreground="{Binding Color, Converter={StaticResource LogColorConv}}"
-                           FontSize="12" Margin="0,1" />
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </ScrollViewer>
+    <!-- Join Modal Overlay -->
+    <Border Name="JoinOverlay" Background="#99000000" IsVisible="{Binding IsJoinModalOpen}"
+            HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+      <Border Background="#1a1a1a" CornerRadius="6" Width="300"
+              HorizontalAlignment="Center" VerticalAlignment="Center"
+              BorderBrush="#303030" BorderThickness="1">
+        <StackPanel>
+          <!-- Header -->
+          <Border BorderBrush="#262626" BorderThickness="0,0,0,1" Padding="16,14,16,12">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="Join session" FontSize="13" FontWeight="Medium" Foreground="#F0F0F0" />
+              <Button Grid.Column="1" Classes="modal-close" Content="&#x2715;"
+                      Command="{Binding CloseJoinModalCommand}" />
+            </Grid>
+          </Border>
+          <!-- Body -->
+          <StackPanel Margin="16">
+            <!-- IP + Port side by side -->
+            <Grid ColumnDefinitions="*,8,80">
+              <StackPanel Grid.Column="0">
+                <TextBlock Text="Host IP" FontSize="11" Foreground="#6b6b6b" Margin="0,0,0,5" />
+                <TextBox Text="{Binding JoinIP}" Watermark="192.168.x.x"
+                         Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
+              </StackPanel>
+              <StackPanel Grid.Column="2">
+                <TextBlock Text="Port" FontSize="11" Foreground="#6b6b6b" Margin="0,0,0,5" />
+                <TextBox Text="{Binding JoinPort}" Watermark="7777"
+                         Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
+              </StackPanel>
+            </Grid>
+            <!-- Password -->
+            <TextBlock Text="Password" FontSize="11" Foreground="#6b6b6b" Margin="0,12,0,0" />
+            <TextBlock Text="(optional)" FontSize="11" Foreground="#3a3a3a" Margin="4,0,0,5"  />
+            <TextBox Text="{Binding JoinPassword}" Watermark="Leave empty if none"
+                     PasswordChar="&#x2022;" Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
+          </StackPanel>
+          <!-- Footer -->
+          <Border BorderBrush="#262626" BorderThickness="0,1,0,0" Padding="16,12">
+            <StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Right">
+              <Button Classes="ghost" Height="28" Padding="14,0" FontSize="11"
+                      Content="Cancel"
+                      Command="{Binding CloseJoinModalCommand}" />
+              <Button Classes="accent" Height="28" Padding="14,0" FontSize="11"
+                      Content="Connect"
+                      Command="{Binding ConnectCommand}"
+                      IsEnabled="{Binding !IsPlaying}" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
       </Border>
-    </StackPanel>
-  </DockPanel>
+    </Border>
+
+    <!-- Host Modal Overlay -->
+    <Border Name="HostOverlay" Background="#99000000" IsVisible="{Binding IsHostModalOpen}"
+            HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+      <Border Background="#1a1a1a" CornerRadius="6" Width="300"
+              HorizontalAlignment="Center" VerticalAlignment="Center"
+              BorderBrush="#303030" BorderThickness="1">
+        <StackPanel>
+          <!-- Header -->
+          <Border BorderBrush="#262626" BorderThickness="0,0,0,1" Padding="16,14,16,12">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="Host a server" FontSize="13" FontWeight="Medium" Foreground="#F0F0F0" />
+              <Button Grid.Column="1" Classes="modal-close" Content="&#x2715;"
+                      Command="{Binding CloseHostModalCommand}" />
+            </Grid>
+          </Border>
+          <!-- Body -->
+          <StackPanel Margin="16">
+            <!-- Port + Max players side by side -->
+            <Grid ColumnDefinitions="*,8,80">
+              <StackPanel Grid.Column="0">
+                <TextBlock Text="Port" FontSize="11" Foreground="#6b6b6b" Margin="0,0,0,5" />
+                <TextBox Text="{Binding HostPort}" Watermark="7777"
+                         Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
+              </StackPanel>
+              <StackPanel Grid.Column="2">
+                <TextBlock Text="Max players" FontSize="11" Foreground="#6b6b6b" Margin="0,0,0,5" />
+                <TextBox Text="{Binding HostMaxPlayers}" Watermark="4"
+                         Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
+              </StackPanel>
+            </Grid>
+            <!-- Password -->
+            <TextBlock Text="Password" FontSize="11" Foreground="#6b6b6b" Margin="0,12,0,0" />
+            <TextBlock Text="(optional)" FontSize="11" Foreground="#3a3a3a" Margin="4,0,0,5" />
+            <TextBox Text="{Binding HostPassword}" Watermark="Leave empty for open session"
+                     PasswordChar="&#x2022;" Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
+          </StackPanel>
+          <!-- Footer -->
+          <Border BorderBrush="#262626" BorderThickness="0,1,0,0" Padding="16,12">
+            <StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Right">
+              <Button Classes="ghost" Height="28" Padding="14,0" FontSize="11"
+                      Content="Cancel"
+                      Command="{Binding CloseHostModalCommand}" />
+              <Button Classes="accent" Height="28" Padding="14,0" FontSize="11"
+                      Content="Start server"
+                      Command="{Binding StartServerCommand}" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Border>
+    </Border>
+  </Grid>
 </UserControl>

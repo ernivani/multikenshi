@@ -12,9 +12,6 @@
     <DataTemplate DataType="{x:Type vm:PlayViewModel}">
       <views:PlayView />
     </DataTemplate>
-    <DataTemplate DataType="{x:Type vm:HostViewModel}">
-      <views:HostView />
-    </DataTemplate>
     <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
       <views:SettingsView />
     </DataTemplate>

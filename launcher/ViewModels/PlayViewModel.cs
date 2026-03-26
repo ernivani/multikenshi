@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -10,35 +12,161 @@ public partial class PlayViewModel : ObservableObject
 {
     private readonly ConfigManager _config;
     private readonly MainViewModel _main;
+    private readonly RelayServer _server;
+    private readonly HostViewModel _host;
+
+    // DLL status
+    [ObservableProperty]
+    private DllStatus _dllStatus;
+
+    // Modal state
+    [ObservableProperty]
+    private bool _isJoinModalOpen;
 
     [ObservableProperty]
-    private string _clientIP;
+    private bool _isHostModalOpen;
+
+    // Join modal fields
+    [ObservableProperty]
+    private string _joinIP;
 
     [ObservableProperty]
-    private string _clientPort;
+    private string _joinPort;
 
+    [ObservableProperty]
+    private string _joinPassword;
+
+    // Host modal fields
+    [ObservableProperty]
+    private string _hostPort;
+
+    [ObservableProperty]
+    private string _hostMaxPlayers;
+
+    [ObservableProperty]
+    private string _hostPassword;
+
+    // Play state
     [ObservableProperty]
     private bool _isPlaying;
 
-    [ObservableProperty]
-    private bool _dllExists;
+    public string StatusText
+    {
+        get
+        {
+            return DllStatus switch
+            {
+                DllStatus.Ready => "Ready to play",
+                DllStatus.Outdated => "Update available",
+                DllStatus.Missing => "DLL not found",
+                _ => ""
+            };
+        }
+    }
 
-    public PlayViewModel(ConfigManager config, MainViewModel main)
+    public string StatusSubText
+    {
+        get
+        {
+            return DllStatus switch
+            {
+                DllStatus.Ready => "kenshi_multiplayer.dll detected",
+                DllStatus.Outdated => "A newer version is available",
+                DllStatus.Missing => "Install the multiplayer DLL to play",
+                _ => ""
+            };
+        }
+    }
+
+    public bool IsPlayReady => DllStatus == DllStatus.Ready || DllStatus == DllStatus.Outdated;
+
+    public ObservableCollection<ChangelogEntry> Changelog { get; } = new();
+
+    public PlayViewModel(ConfigManager config, MainViewModel main, RelayServer server, HostViewModel host)
     {
         _config = config;
         _main = main;
-        _clientIP = config.ClientIP;
-        _clientPort = config.ClientPort;
-        _dllExists = ProcessLauncher.DllExists();
+        _server = server;
+        _host = host;
+
+        _joinIP = config.ClientIP;
+        _joinPort = config.ClientPort;
+        _joinPassword = "";
+        _hostPort = config.ServerPort;
+        _hostMaxPlayers = "8";
+        _hostPassword = "";
+
+        RefreshDllStatus();
+        LoadChangelog();
+    }
+
+    partial void OnDllStatusChanged(DllStatus value)
+    {
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(StatusSubText));
+        OnPropertyChanged(nameof(IsPlayReady));
+    }
+
+    private void LoadChangelog()
+    {
+        Changelog.Add(new ChangelogEntry
+        {
+            Version = "0.2",
+            Date = "today",
+            Lines = new List<ChangelogLine>
+            {
+                new("new", "Peer-to-peer session system rewrite"),
+                new("new", "Steam identity passed to session handshake"),
+                new("fix", "Desync on squad movement across zone boundaries"),
+                new("fix", "DLL injection stability on Kenshi 1.0.55"),
+            }
+        });
+        Changelog.Add(new ChangelogEntry
+        {
+            Version = "0.1",
+            Date = "3w ago",
+            Lines = new List<ChangelogLine>
+            {
+                new("new", "Initial DLL injector and hook system"),
+                new("new", "Host / join flow with direct IP"),
+                new("wip", "Voice chat \u2014 not yet functional"),
+            }
+        });
     }
 
     [RelayCommand]
-    private async Task PlayMultiplayerAsync()
+    private void OpenJoinModal()
+    {
+        IsJoinModalOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseJoinModal()
+    {
+        IsJoinModalOpen = false;
+    }
+
+    [RelayCommand]
+    private void OpenHostModal()
+    {
+        IsHostModalOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseHostModal()
+    {
+        IsHostModalOpen = false;
+    }
+
+    [RelayCommand]
+    private async Task ConnectAsync()
     {
         if (IsPlaying) return;
 
-        _config.ClientIP = ClientIP;
-        _config.ClientPort = ClientPort;
+        IsJoinModalOpen = false;
+
+        _config.ClientIP = JoinIP;
+        _config.ClientPort = JoinPort;
         _config.Save();
 
         if (string.IsNullOrWhiteSpace(_config.KenshiPath))
@@ -53,10 +181,8 @@ public partial class PlayViewModel : ObservableObject
         {
             await Task.Run(async () =>
             {
-                // Write config for the DLL
-                GameConfigWriter.Write(_config.KenshiPath, ClientIP, ClientPort);
+                GameConfigWriter.Write(_config.KenshiPath, JoinIP, JoinPort);
 
-                // Check if Kenshi is already running
                 var process = ProcessLauncher.FindKenshiProcess();
                 int pid;
 
@@ -80,7 +206,6 @@ public partial class PlayViewModel : ObservableObject
                     await Task.Delay(5000);
                 }
 
-                // Check DLL exists
                 var dllPath = ProcessLauncher.GetDllPath();
                 if (!System.IO.File.Exists(dllPath))
                 {
@@ -106,53 +231,26 @@ public partial class PlayViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task SingleplayerAsync()
+    private void StartServer()
     {
-        if (IsPlaying) return;
+        IsHostModalOpen = false;
 
+        _config.ServerPort = HostPort;
         _config.Save();
 
-        if (string.IsNullOrWhiteSpace(_config.KenshiPath))
-        {
-            _main.PostLog("ERROR: Set the Kenshi path in Settings first.");
-            return;
-        }
+        // Delegate to HostViewModel's toggle logic
+        _host.ServerPort = HostPort;
+        _host.ToggleServerCommand.Execute(null);
+    }
 
-        IsPlaying = true;
-
-        try
-        {
-            await Task.Run(() =>
-            {
-                _main.PostLog("Launching Kenshi (singleplayer)...");
-                var process = ProcessLauncher.FindKenshiProcess();
-
-                if (process != null)
-                {
-                    _main.PostLog($"Kenshi already running (PID {process.Id}).");
-                }
-                else
-                {
-                    process = ProcessLauncher.LaunchKenshi(_config.KenshiPath);
-                    if (process != null)
-                    {
-                        _main.PostLog($"Kenshi started (PID {process.Id}).");
-                    }
-                    else
-                    {
-                        _main.PostLog("ERROR: Failed to launch Kenshi.");
-                    }
-                }
-            });
-        }
-        finally
-        {
-            IsPlaying = false;
-        }
+    [RelayCommand]
+    private void InstallDll()
+    {
+        _main.PostLog("DLL installation not yet implemented.");
     }
 
     public void RefreshDllStatus()
     {
-        DllExists = ProcessLauncher.DllExists();
+        DllStatus = ProcessLauncher.DllExists() ? DllStatus.Ready : DllStatus.Missing;
     }
 }

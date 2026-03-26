@@ -17,6 +17,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _activeTab;
 
+    [ObservableProperty]
+    private string _steamName = "Player";
+
     public ObservableCollection<LogEntry> LogLines { get; } = new();
 
     public PlayViewModel Play { get; }
@@ -28,8 +31,11 @@ public partial class MainViewModel : ObservableObject
         _config.Load();
         _server.Log = PostLog;
 
-        Play = new PlayViewModel(_config, this);
+        var (name, _) = SteamIdentity.GetCurrentUser();
+        SteamName = name;
+
         Host = new HostViewModel(_config, _server, this);
+        Play = new PlayViewModel(_config, this, _server, Host);
         Settings = new SettingsViewModel(_config, this);
 
         // Auto-detect Kenshi path if not set
@@ -87,12 +93,8 @@ public partial class MainViewModel : ObservableObject
                 ActiveTab = 0;
                 CurrentPage = Play;
                 break;
-            case "Host":
-                ActiveTab = 1;
-                CurrentPage = Host;
-                break;
             case "Settings":
-                ActiveTab = 2;
+                ActiveTab = 1;
                 CurrentPage = Settings;
                 break;
         }

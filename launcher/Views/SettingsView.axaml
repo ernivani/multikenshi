@@ -6,10 +6,10 @@
 
   <StackPanel>
     <TextBlock Text="Settings" FontSize="20" FontWeight="Bold" Foreground="#F0F0F0" />
-    <TextBlock Text="Configure game path and preferences" FontSize="12" Foreground="#444444" Margin="0,4,0,24" />
+    <TextBlock Text="Configure game path and preferences" FontSize="12" Foreground="#3a3a3a" Margin="0,4,0,24" />
 
     <!-- Kenshi path -->
-    <TextBlock Text="KENSHI INSTALLATION PATH" FontSize="12" Foreground="#888888" Margin="0,0,0,4" />
+    <TextBlock Text="KENSHI INSTALLATION PATH" FontSize="12" Foreground="#6b6b6b" Margin="0,0,0,4" />
     <Grid ColumnDefinitions="*,10,Auto">
       <TextBox Grid.Column="0" Text="{Binding KenshiPath}" Watermark="C:\...\Kenshi" />
       <Button Grid.Column="2" Classes="surface" Content="Browse" Width="90" Height="36"
@@ -24,10 +24,10 @@
     </StackPanel>
 
     <!-- DLL status -->
-    <TextBlock Text="DLL STATUS" FontSize="12" Foreground="#888888" Margin="0,28,0,6" />
+    <TextBlock Text="DLL STATUS" FontSize="12" Foreground="#6b6b6b" Margin="0,28,0,6" />
     <StackPanel Orientation="Horizontal" Spacing="8">
       <Ellipse Name="DllDot" Width="6" Height="6" VerticalAlignment="Center" />
-      <TextBlock Text="kenshi_multiplayer.dll" FontSize="12" Foreground="#444444" VerticalAlignment="Center" />
+      <TextBlock Text="kenshi_multiplayer.dll" FontSize="12" Foreground="#3a3a3a" VerticalAlignment="Center" />
       <TextBlock Name="DllStatusLabel" FontSize="12" VerticalAlignment="Center" />
     </StackPanel>
   </StackPanel>

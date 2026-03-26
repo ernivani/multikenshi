@@ -3,72 +3,136 @@
         xmlns:vm="using:KenshiLauncher.ViewModels"
         x:Class="KenshiLauncher.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="Kenshi Multiplayer"
+        Title="Kenshi Nexus"
         Width="960" Height="680"
         MinWidth="800" MinHeight="500"
         Background="#0F0F0F"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaChromeHints="NoChrome"
-        ExtendClientAreaTitleBarHeightHint="38"
+        ExtendClientAreaTitleBarHeightHint="36"
         SystemDecorations="Full">
 
-  <Grid ColumnDefinitions="200,*">
-    <!-- Sidebar -->
-    <Border Grid.Column="0" Background="#0E0E0E"
-            BorderBrush="#1E1E1E" BorderThickness="0,0,1,0">
-      <DockPanel Margin="24,62,16,16">
-        <!-- Brand at top -->
-        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,36">
-          <TextBlock Text="KENSHI" FontSize="28" FontWeight="Bold" Foreground="#C8B89A" />
-          <TextBlock Text="MULTIPLAYER" FontSize="12" Foreground="#444444" Margin="0,2,0,0" />
-        </StackPanel>
+  <Grid RowDefinitions="36,*">
+    <!-- Titlebar (draggable) -->
+    <Border Grid.Row="0" Background="#1a1a1a"
+            BorderBrush="#262626" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="*,Auto">
+        <!-- Drag region -->
+        <Border Grid.Column="0" Background="Transparent"
+                PointerPressed="TitleBar_PointerPressed"
+                DoubleTapped="TitleBar_DoubleTapped">
+          <TextBlock Text="Kenshi Nexus" FontSize="11" Foreground="#3a3a3a"
+                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                     IsHitTestVisible="False" />
+        </Border>
 
-        <!-- Version at bottom -->
-        <TextBlock DockPanel.Dock="Bottom" Text="v1.0.0" FontSize="12" Foreground="#444444" Margin="0,0,0,0" />
-
-        <!-- Nav items -->
-        <StackPanel Spacing="4">
-          <Panel>
-            <!-- Active indicator bar -->
-            <Border IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=0}"
-                    Width="3" Height="24" CornerRadius="1.5"
-                    Background="#C8B89A"
-                    HorizontalAlignment="Left" Margin="-24,0,0,0" />
-            <Button Classes="nav"
-                    Classes.active="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=0}"
-                    Content="Play"
-                    Command="{Binding NavigateToCommand}"
-                    CommandParameter="Play" />
-          </Panel>
-          <Panel>
-            <Border IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=1}"
-                    Width="3" Height="24" CornerRadius="1.5"
-                    Background="#C8B89A"
-                    HorizontalAlignment="Left" Margin="-24,0,0,0" />
-            <Button Classes="nav"
-                    Classes.active="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=1}"
-                    Content="Host"
-                    Command="{Binding NavigateToCommand}"
-                    CommandParameter="Host" />
-          </Panel>
-          <Panel>
-            <Border IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=2}"
-                    Width="3" Height="24" CornerRadius="1.5"
-                    Background="#C8B89A"
-                    HorizontalAlignment="Left" Margin="-24,0,0,0" />
-            <Button Classes="nav"
-                    Classes.active="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=2}"
-                    Content="Settings"
-                    Command="{Binding NavigateToCommand}"
-                    CommandParameter="Settings" />
-          </Panel>
+        <!-- Windows-style caption buttons (right side) -->
+        <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <Button Classes="caption-btn" Click="OnMinimize" ToolTip.Tip="Minimize">
+            <TextBlock Text="&#x2014;" FontSize="10" />
+          </Button>
+          <Button Classes="caption-btn" Click="OnMaximize" ToolTip.Tip="Maximize">
+            <TextBlock Text="&#x25A1;" FontSize="11" />
+          </Button>
+          <Button Classes="caption-btn close" Click="OnClose" ToolTip.Tip="Close">
+            <TextBlock Text="&#x2715;" FontSize="10" />
+          </Button>
         </StackPanel>
-      </DockPanel>
+      </Grid>
     </Border>
 
-    <!-- Main content area -->
-    <Border Grid.Column="1" Background="#0F0F0F">
-      <ContentControl Content="{Binding CurrentPage}" Margin="40,62,40,32" />
-    </Border>
+    <Grid Grid.Row="1" ColumnDefinitions="210,*">
+      <!-- Sidebar -->
+      <Border Grid.Column="0" Background="#1a1a1a"
+              BorderBrush="#262626" BorderThickness="0,0,1,0">
+        <DockPanel>
+          <!-- Brand row with border-bottom -->
+          <Border DockPanel.Dock="Top" BorderBrush="#262626" BorderThickness="0,0,0,1"
+                  Padding="16,14,16,12">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="Kenshi Nexus" FontSize="13" FontWeight="SemiBold" Foreground="#F0F0F0" />
+              <TextBlock Grid.Column="1" Text="v0.2" FontSize="11" Foreground="#3a3a3a" VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+
+          <!-- Footer: identity card -->
+          <Border DockPanel.Dock="Bottom" BorderBrush="#262626" BorderThickness="0,1,0,0"
+                  Padding="12,10">
+            <Border Background="#222222" BorderBrush="#262626" BorderThickness="1"
+                    CornerRadius="5" Padding="10,8">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <!-- Steam avatar icon -->
+                <Border Grid.Column="0" Width="22" Height="22" CornerRadius="4"
+                        Background="#152030" Margin="0,0,8,0">
+                  <Path Data="M12 2C6.48 2 2 6.48 2 12c0 4.24 2.65 7.86 6.39 9.29l3.32-6.86A3 3 0 0 1 12 9a3 3 0 0 1 3 3 3 3 0 0 1-3 3c-.22 0-.43-.02-.63-.07L8.1 18.82A10 10 0 0 0 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z"
+                        Fill="#1b8ab0" Stretch="Uniform" Width="12" Height="12"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <!-- Name -->
+                <TextBlock Grid.Column="1" Text="{Binding SteamName}" FontSize="11" FontWeight="Medium"
+                           Foreground="#F0F0F0" VerticalAlignment="Center" />
+                <!-- Steam label -->
+                <TextBlock Grid.Column="2" Text="Steam" FontSize="10" Foreground="#1b8ab0"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+          </Border>
+
+          <!-- Nav items -->
+          <StackPanel Margin="0,6,0,0">
+            <Panel>
+              <Border IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=0}"
+                      Width="2" CornerRadius="0,1,1,0"
+                      Background="#c8a052"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Stretch"
+                      Margin="0,5,0,5" />
+              <Button Classes="nav"
+                      Classes.active="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=0}"
+                      Command="{Binding NavigateToCommand}"
+                      CommandParameter="Play"
+                      Padding="16,6">
+                <StackPanel Orientation="Horizontal" Spacing="9">
+                  <Path Data="M5,3 L19,12 L5,21 Z"
+                        Fill="{Binding $parent[Button].Foreground}"
+                        Stretch="Uniform" Width="13" Height="13"
+                        VerticalAlignment="Center" />
+                  <TextBlock Text="Play" FontSize="12"
+                             Foreground="{Binding $parent[Button].Foreground}" />
+                </StackPanel>
+              </Button>
+            </Panel>
+            <Panel>
+              <Border IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=1}"
+                      Width="2" CornerRadius="0,1,1,0"
+                      Background="#c8a052"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Stretch"
+                      Margin="0,5,0,5" />
+              <Button Classes="nav"
+                      Classes.active="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=1}"
+                      Command="{Binding NavigateToCommand}"
+                      CommandParameter="Settings"
+                      Padding="16,6">
+                <StackPanel Orientation="Horizontal" Spacing="9">
+                  <Path Data="M12,15 A3,3 0 1,1 12,9 A3,3 0 1,1 12,15 M19.4,15 a1.65,1.65 0 0,0 0.33,1.82 l0.06,0.06 a2,2 0 0,1 -2.83,2.83 l-0.06,-0.06 a1.65,1.65 0 0,0 -1.82,-0.33 a1.65,1.65 0 0,0 -1,1.51 L14,21 a2,2 0 0,1 -4,0 l0,-0.09 A1.65,1.65 0 0,0 9,19.4 a1.65,1.65 0 0,0 -1.82,0.33 l-0.06,0.06 a2,2 0 0,1 -2.83,-2.83 l0.06,-0.06 A1.65,1.65 0 0,0 4.68,15 a1.65,1.65 0 0,0 -1.51,-1 L3,14 a2,2 0 0,1 0,-4 l0.09,0 A1.65,1.65 0 0,0 4.6,9 a1.65,1.65 0 0,0 -0.33,-1.82 l-0.06,-0.06 a2,2 0 0,1 2.83,-2.83 l0.06,0.06 A1.65,1.65 0 0,0 9,4.68 a1.65,1.65 0 0,0 1,-1.51 L10,3 a2,2 0 0,1 4,0 l0,0.09 a1.65,1.65 0 0,0 1,1.51 a1.65,1.65 0 0,0 1.82,-0.33 l0.06,-0.06 a2,2 0 0,1 2.83,2.83 l-0.06,0.06 A1.65,1.65 0 0,0 19.4,9 a1.65,1.65 0 0,0 1.51,1 L21,10 a2,2 0 0,1 0,4 l-0.09,0 a1.65,1.65 0 0,0 -1.51,1 z"
+                        Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.5"
+                        Fill="Transparent"
+                        Stretch="Uniform" Width="13" Height="13"
+                        VerticalAlignment="Center" />
+                  <TextBlock Text="Settings" FontSize="12"
+                             Foreground="{Binding $parent[Button].Foreground}" />
+                </StackPanel>
+              </Button>
+            </Panel>
+          </StackPanel>
+        </DockPanel>
+      </Border>
+
+      <!-- Main content area -->
+      <Border Grid.Column="1" Background="#0F0F0F">
+        <ContentControl Content="{Binding CurrentPage}" Margin="28,24,28,24" />
+      </Border>
+    </Grid>
   </Grid>
 </Window>
