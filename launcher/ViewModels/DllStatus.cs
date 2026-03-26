@@ -4,5 +4,6 @@ public enum DllStatus
 {
     Ready,
     Outdated,
-    Missing
+    Missing,
+    Corrupted
 }

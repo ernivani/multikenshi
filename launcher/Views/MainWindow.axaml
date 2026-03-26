@@ -89,14 +89,14 @@
           <!-- Nav items -->
           <StackPanel Margin="0,6,0,0">
             <Panel>
-              <Border IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=0}"
+              <Border IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=Play}"
                       Width="2" CornerRadius="0,1,1,0"
                       Background="#c8a052"
                       HorizontalAlignment="Left"
                       VerticalAlignment="Stretch"
                       Margin="0,5,0,5" />
               <Button Classes="nav"
-                      Classes.active="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=0}"
+                      Classes.active="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=Play}"
                       Command="{Binding NavigateToCommand}"
                       CommandParameter="Play"
                       Padding="16,6">
@@ -111,14 +111,14 @@
               </Button>
             </Panel>
             <Panel>
-              <Border IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=1}"
+              <Border IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=Settings}"
                       Width="2" CornerRadius="0,1,1,0"
                       Background="#c8a052"
                       HorizontalAlignment="Left"
                       VerticalAlignment="Stretch"
                       Margin="0,5,0,5" />
               <Button Classes="nav"
-                      Classes.active="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=1}"
+                      Classes.active="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=Settings}"
                       Command="{Binding NavigateToCommand}"
                       CommandParameter="Settings"
                       Padding="16,6">

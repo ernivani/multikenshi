@@ -21,6 +21,9 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _dllExists;
 
+    [ObservableProperty]
+    private string _uninstallMessage = "";
+
     public SettingsViewModel(ConfigManager config, MainViewModel main)
     {
         _config = config;
@@ -58,6 +61,64 @@ public partial class SettingsViewModel : ObservableObject
             KenshiPath = result[0].Path.LocalPath;
             _main.PostLog("Kenshi path updated.");
         }
+    }
+
+    [RelayCommand]
+    private void UninstallMod()
+    {
+        int removed = 0;
+
+        // Remove DLL
+        var dllPath = ProcessLauncher.GetDllPath();
+        if (File.Exists(dllPath))
+        {
+            try { File.Delete(dllPath); removed++; }
+            catch (Exception ex)
+            {
+                UninstallMessage = $"Failed to delete DLL: {ex.Message}";
+                return;
+            }
+        }
+
+        // Remove hash file
+        var hashPath = dllPath + ".sha256";
+        if (File.Exists(hashPath))
+        {
+            try { File.Delete(hashPath); removed++; }
+            catch { /* non-critical */ }
+        }
+
+        // Remove kenshi_mp.ini from Kenshi directory
+        if (!string.IsNullOrEmpty(_config.KenshiPath))
+        {
+            var iniPath = Path.Combine(_config.KenshiPath, "kenshi_mp.ini");
+            if (File.Exists(iniPath))
+            {
+                try { File.Delete(iniPath); removed++; }
+                catch { /* non-critical */ }
+            }
+        }
+
+        UpdateStatus();
+        _main.Play.RefreshDllStatus();
+
+        if (removed > 0)
+        {
+            UninstallMessage = "Mod files removed";
+            _main.PostLog("Mod uninstalled — DLL and config removed.");
+        }
+        else
+        {
+            UninstallMessage = "Nothing to remove";
+        }
+
+        ClearUninstallMessageAfterDelay();
+    }
+
+    private async void ClearUninstallMessageAfterDelay()
+    {
+        await Task.Delay(3000);
+        UninstallMessage = "";
     }
 
     private void UpdateStatus()

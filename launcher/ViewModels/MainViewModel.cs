@@ -15,7 +15,7 @@ public partial class MainViewModel : ObservableObject
     private object? _currentPage;
 
     [ObservableProperty]
-    private int _activeTab;
+    private string _activeTab = "";
 
     [ObservableProperty]
     private string _steamName = "Player";
@@ -58,7 +58,7 @@ public partial class MainViewModel : ObservableObject
         PostLog("Ready.");
 
         // Start on Play page
-        ActiveTab = 0;
+        ActiveTab = "Play";
         CurrentPage = Play;
     }
 
@@ -90,11 +90,11 @@ public partial class MainViewModel : ObservableObject
         switch (page)
         {
             case "Play":
-                ActiveTab = 0;
+                ActiveTab = "Play";
                 CurrentPage = Play;
                 break;
             case "Settings":
-                ActiveTab = 1;
+                ActiveTab = "Settings";
                 CurrentPage = Settings;
                 break;
         }

@@ -66,6 +66,7 @@ public partial class PlayViewModel : ObservableObject
                 DllStatus.Ready => "Ready to play",
                 DllStatus.Outdated => "Update available",
                 DllStatus.Missing => "DLL not found",
+                DllStatus.Corrupted => "DLL corrupted",
                 _ => ""
             };
         }
@@ -80,6 +81,7 @@ public partial class PlayViewModel : ObservableObject
                 DllStatus.Ready => "kenshi_multiplayer.dll detected",
                 DllStatus.Outdated => "A newer version is available",
                 DllStatus.Missing => "Install the multiplayer DLL to play",
+                DllStatus.Corrupted => "DLL corrupted — reinstall to fix",
                 _ => ""
             };
         }
@@ -270,6 +272,7 @@ public partial class PlayViewModel : ObservableObject
         {
             InstallMessage = "Copying DLL...";
             System.IO.File.Copy(source, dest, overwrite: true);
+            Services.DllIntegrity.WriteHash(dest);
             InstallMessage = "Installed successfully";
             _main.PostLog($"Installed DLL from {source}");
             RefreshDllStatus();
@@ -326,6 +329,14 @@ public partial class PlayViewModel : ObservableObject
 
     public void RefreshDllStatus()
     {
-        DllStatus = ProcessLauncher.DllExists() ? DllStatus.Ready : DllStatus.Missing;
+        var dllPath = ProcessLauncher.GetDllPath();
+        var (valid, reason) = Services.DllIntegrity.Verify(dllPath);
+
+        if (valid)
+            DllStatus = DllStatus.Ready;
+        else if (reason == "missing")
+            DllStatus = DllStatus.Missing;
+        else
+            DllStatus = DllStatus.Corrupted;
     }
 }

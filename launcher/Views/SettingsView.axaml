@@ -30,5 +30,18 @@
       <TextBlock Text="kenshi_multiplayer.dll" FontSize="12" Foreground="#3a3a3a" VerticalAlignment="Center" />
       <TextBlock Name="DllStatusLabel" FontSize="12" VerticalAlignment="Center" />
     </StackPanel>
+
+    <!-- Uninstall -->
+    <TextBlock Text="DANGER ZONE" FontSize="12" Foreground="#6b6b6b" Margin="0,36,0,4" />
+    <TextBlock Text="Remove all mod files (DLL, config). Your settings are preserved."
+               FontSize="11" Foreground="#3a3a3a" Margin="0,0,0,10" />
+    <StackPanel Orientation="Horizontal" Spacing="10">
+      <Button Classes="danger" Content="Uninstall mod" Height="36" Width="140"
+              HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+              Command="{Binding UninstallModCommand}" />
+      <TextBlock Text="{Binding UninstallMessage}" FontSize="11" Foreground="#6b6b6b"
+                 IsVisible="{Binding UninstallMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                 VerticalAlignment="Center" />
+    </StackPanel>
   </StackPanel>
 </UserControl>

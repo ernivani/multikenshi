@@ -57,6 +57,12 @@ public partial class PlayView : UserControl
                 StatusLabel.Foreground = Text2Brush;
                 StatusSubLabel.Text = "nexus_mp.dll missing from Kenshi directory";
                 break;
+            case DllStatus.Corrupted:
+                StatusDot.Fill = RedBrush;
+                StatusLabel.Text = "DLL corrupted";
+                StatusLabel.Foreground = RedBrush;
+                StatusSubLabel.Text = "DLL corrupted or wrong version — reinstall";
+                break;
         }
     }
 }
