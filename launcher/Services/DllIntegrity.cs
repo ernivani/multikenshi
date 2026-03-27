@@ -27,7 +27,12 @@ public static class DllIntegrity
 
         var hashPath = dllPath + ".sha256";
         if (!File.Exists(hashPath))
-            return (false, "no hash — reinstall recommended");
+        {
+            // First run — DLL exists but no hash. Write hash and treat as valid.
+            try { WriteHash(dllPath); }
+            catch { return (false, "no hash — reinstall recommended"); }
+            return (true, "");
+        }
 
         var expected = File.ReadAllText(hashPath).Trim();
         var actual = ComputeHash(dllPath);

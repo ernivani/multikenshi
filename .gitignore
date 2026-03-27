@@ -412,4 +412,10 @@ launcher/obj/
 nul
 Thumbs.db
 .DS_Store
+
+# Reference repos
 Kenshi-Online/
+
+# Distribution builds
+dist/
+*.zip
