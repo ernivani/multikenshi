@@ -169,10 +169,12 @@ public static class GitHubUpdater
 
             log?.Invoke("Launcher updated — restarting...");
 
-            // Restart
+            // Launch new version with our PID so it can kill us
+            var myPid = Process.GetCurrentProcess().Id;
             Process.Start(new ProcessStartInfo
             {
                 FileName = currentExe,
+                Arguments = $"--updated-from {myPid}",
                 UseShellExecute = true
             });
 

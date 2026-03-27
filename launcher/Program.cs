@@ -1,21 +1,32 @@
 using Avalonia;
 using System;
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
+using System.Linq;
 using KenshiLauncher.Services;
 
 namespace KenshiLauncher;
 
 class Program
 {
-    public const string Version = "0.4.5";
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
+    public const string Version = "0.4.6";
 
     [STAThread]
     public static void Main(string[] args)
     {
+        // If launched by the updater with --updated-from <pid>, kill the old instance
+        for (int i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i] == "--updated-from" && int.TryParse(args[i + 1], out var oldPid))
+            {
+                try
+                {
+                    var old = System.Diagnostics.Process.GetProcessById(oldPid);
+                    old.Kill();
+                    old.WaitForExit(3000);
+                }
+                catch { }
+            }
+        }
+
         // Clean up old launcher from previous update
         try
         {
@@ -25,25 +36,14 @@ class Program
         }
         catch { }
 
-        // Check for launcher self-update (blocks briefly at startup)
+        // Check for launcher self-update (silent, no popup)
         if (!GitHubUpdater.IsDevMode())
         {
             var updateTask = GitHubUpdater.CheckLauncherUpdate(msg => Console.WriteLine(msg));
-
-            // Quick check — did it finish fast?
-            updateTask.Wait(TimeSpan.FromSeconds(3));
-
-            if (!updateTask.IsCompleted)
-            {
-                // Still downloading — tell the user
-                MessageBoxW(IntPtr.Zero,
-                    "Downloading update, please wait...\nThe launcher will restart automatically.",
-                    "MultiKenshi — Updating", 0x00000040); // MB_ICONINFORMATION
-                updateTask.Wait(TimeSpan.FromSeconds(30));
-            }
+            updateTask.Wait(TimeSpan.FromSeconds(15));
 
             if (updateTask.IsCompletedSuccessfully && updateTask.Result)
-                return; // restarting
+                return; // new instance launched, this one exits
         }
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
