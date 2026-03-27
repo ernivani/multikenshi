@@ -120,6 +120,7 @@ namespace gameState {
 
     // Get our squad characters as JSON array
     // "Our" = characters whose faction matches our player's faction
+    // Uses charsByName which has correct AnimationClassHuman* pointers
     json getSquadJson() {
         json arr = json::array();
         if (!player) return arr;
@@ -136,11 +137,12 @@ namespace gameState {
         if (ourFaction.empty()) return arr;
 
         long long now = GetTickCount64();
-        for (auto it = chars.begin(); it != chars.end(); ++it) {
+        for (auto it = charsByName.begin(); it != charsByName.end(); ++it) {
             // Skip stale characters (not seen in 10s)
-            if (now - it->second.second > 10000) continue;
+            auto ts = charLastSeen.find(it->first);
+            if (ts != charLastSeen.end() && now - ts->second > 10000) continue;
 
-            structs::AnimationClassHuman* anim = reinterpret_cast<structs::AnimationClassHuman*>(it->first);
+            structs::AnimationClassHuman* anim = it->second;
             std::string facName(safeGetFactionName(anim));
             if (facName != ourFaction) continue;
 
@@ -149,7 +151,7 @@ namespace gameState {
             if (x == 0.0f && y == 0.0f && z == 0.0f) continue;
 
             json ch;
-            ch["n"] = it->second.first;
+            ch["n"] = it->first;
             ch["x"] = x;
             ch["y"] = y;
             ch["z"] = z;
@@ -160,6 +162,7 @@ namespace gameState {
     }
 
     // Get NPC characters (not our faction) as JSON array
+    // Uses charsByName which has correct AnimationClassHuman* pointers
     json getNpcJson() {
         json arr = json::array();
         if (!player) return arr;
@@ -167,10 +170,11 @@ namespace gameState {
         std::string ourFaction = getPlayerFaction();
 
         long long now = GetTickCount64();
-        for (auto it = chars.begin(); it != chars.end(); ++it) {
-            if (now - it->second.second > 10000) continue;
+        for (auto it = charsByName.begin(); it != charsByName.end(); ++it) {
+            auto ts = charLastSeen.find(it->first);
+            if (ts != charLastSeen.end() && now - ts->second > 10000) continue;
 
-            structs::AnimationClassHuman* anim = reinterpret_cast<structs::AnimationClassHuman*>(it->first);
+            structs::AnimationClassHuman* anim = it->second;
             std::string facName(safeGetFactionName(anim));
             // Skip our own faction — those go in squad
             if (!ourFaction.empty() && facName == ourFaction) continue;
@@ -180,7 +184,7 @@ namespace gameState {
             if (x == 0.0f && y == 0.0f && z == 0.0f) continue;
 
             json ch;
-            ch["n"] = it->second.first;
+            ch["n"] = it->first;
             ch["x"] = x;
             ch["y"] = y;
             ch["z"] = z;

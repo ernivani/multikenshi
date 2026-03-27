@@ -59,6 +59,7 @@ namespace gameState {
     }
     std::map<structs::AnimationClassHuman*, std::pair<std::string, long long>> chars;
     std::map<std::string, structs::AnimationClassHuman*> charsByName;
+    std::map<std::string, long long> charLastSeen;
     std::map<structs::Building*, std::pair<std::string, long long>> builds;
     structs::AnimationClassHuman* player = 0;
     structs::AnimationClassHuman* otherplayers = 0;
@@ -85,6 +86,7 @@ namespace gameState {
             std::string nameStr(chosenName);
             chars[(structs::AnimationClassHuman*)ch] = std::make_pair(nameStr, 0);
             charsByName[nameStr] = num;
+            charLastSeen[nameStr] = GetTickCount64();
 
             // Auto-detect player: first character we see becomes our player
             // (the player's characters are always loaded first)
@@ -103,7 +105,9 @@ namespace gameState {
             }
         } else {
             // Update charsByName mapping (pointer may have changed)
-            charsByName[chars[(structs::AnimationClassHuman*)ch].first] = num;
+            std::string& nameRef = chars[(structs::AnimationClassHuman*)ch].first;
+            charsByName[nameRef] = num;
+            charLastSeen[nameRef] = GetTickCount64();
         }
         chars[(structs::AnimationClassHuman*)ch].second = GetTickCount64();
     }

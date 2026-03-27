@@ -122,9 +122,35 @@ namespace network {
             }
         }
 
-        // Step 3: Main loop
+        // Step 3: Main loop — send first, then receive
         while (running) {
-            // 3a. Receive world update from server
+            // 3a. Send player state (our squad)
+            try {
+                json ps;
+                ps["t"] = "ps";
+                ps["speed"] = gameState::getSpeedFloat();
+                ps["squad"] = gameState::getSquadJson();
+                sendLine(client_fd, ps.dump());
+            }
+            catch (const std::exception& e) {
+                std::cerr << "ERROR building player state: " << e.what() << "\n";
+            }
+
+            // 3b. If host, also send world state (NPCs + buildings)
+            if (isHost) {
+                try {
+                    json ws;
+                    ws["t"] = "ws";
+                    ws["npcs"] = gameState::getNpcJson();
+                    ws["buildings"] = gameState::getBuildingJson();
+                    sendLine(client_fd, ws.dump());
+                }
+                catch (const std::exception& e) {
+                    std::cerr << "ERROR building world state: " << e.what() << "\n";
+                }
+            }
+
+            // 3c. Receive world update from server
             if (!readLine(client_fd, buffer, line)) {
                 std::cerr << "Server disconnected!\n";
                 running = false;
@@ -141,32 +167,6 @@ namespace network {
             catch (const std::exception& e) {
                 std::cerr << "ERROR parsing world update: " << e.what() << "\n";
                 std::cerr << "  Raw: " << line.substr(0, 200) << "\n";
-            }
-
-            // 3b. Send player state (our squad)
-            try {
-                json ps;
-                ps["t"] = "ps";
-                ps["speed"] = gameState::getSpeedFloat();
-                ps["squad"] = gameState::getSquadJson();
-                sendLine(client_fd, ps.dump());
-            }
-            catch (const std::exception& e) {
-                std::cerr << "ERROR building player state: " << e.what() << "\n";
-            }
-
-            // 3c. If host, also send world state (NPCs + buildings)
-            if (isHost) {
-                try {
-                    json ws;
-                    ws["t"] = "ws";
-                    ws["npcs"] = gameState::getNpcJson();
-                    ws["buildings"] = gameState::getBuildingJson();
-                    sendLine(client_fd, ws.dump());
-                }
-                catch (const std::exception& e) {
-                    std::cerr << "ERROR building world state: " << e.what() << "\n";
-                }
             }
         }
     }

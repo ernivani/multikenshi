@@ -290,16 +290,20 @@ public class RelayServer
             await SendJson(stream, welcome, ct);
 
             // Step 4: Main relay loop
+            int msgCount = 0;
+            DateTime lastStatusLog = DateTime.MinValue;
             while (!ct.IsCancellationRequested && client.Connected)
             {
                 var msg = await ReadJsonMessage(stream, accumulator, buffer, ct);
                 if (msg == null) break;
 
                 var type = msg.Value.GetProperty("t").GetString();
+                msgCount++;
 
                 if (type == "ps")
                 {
                     // Player state update
+                    int squadCount = 0;
                     lock (_lock)
                     {
                         if (_players.TryGetValue(clientId, out var p))
@@ -314,25 +318,52 @@ public class RelayServer
                             {
                                 p.Squad = JsonSerializer.Deserialize<List<CharacterState>>(sq.GetRawText(), _jsonOpts)
                                           ?? new List<CharacterState>();
+                                squadCount = p.Squad.Count;
                             }
                         }
                     }
+
+                    // Log first ps and then periodically
+                    if (msgCount == 1)
+                        PostLog($"[{clientId}] First ps: {squadCount} squad, speed={_speed:F1}");
                 }
                 else if (type == "ws")
                 {
                     // World state from host only
+                    int npcCount = 0, bldCount = 0;
                     lock (_lock)
                     {
                         if (clientId == _hostId)
                         {
                             if (msg.Value.TryGetProperty("npcs", out var npcs))
+                            {
                                 _hostNpcs = JsonSerializer.Deserialize<List<CharacterState>>(npcs.GetRawText(), _jsonOpts)
                                             ?? new List<CharacterState>();
+                                npcCount = _hostNpcs.Count;
+                            }
 
                             if (msg.Value.TryGetProperty("buildings", out var blds))
+                            {
                                 _hostBuildings = JsonSerializer.Deserialize<List<BuildingState>>(blds.GetRawText(), _jsonOpts)
                                                  ?? new List<BuildingState>();
+                                bldCount = _hostBuildings.Count;
+                            }
                         }
+                    }
+
+                    // Log first ws and then periodically
+                    if (msgCount <= 2)
+                        PostLog($"[{clientId}] First ws: {npcCount} npcs, {bldCount} buildings");
+                }
+
+                // Periodic status log (every 30s)
+                if ((DateTime.UtcNow - lastStatusLog).TotalSeconds >= 30)
+                {
+                    lastStatusLog = DateTime.UtcNow;
+                    lock (_lock)
+                    {
+                        if (_players.TryGetValue(clientId, out var sp))
+                            PostLog($"[{clientId}] Relay: {msgCount} msgs, {sp.Squad.Count} squad, {_hostNpcs.Count} npcs, speed={_speed:F1}");
                     }
                 }
 
@@ -471,10 +502,11 @@ public class RelayServer
 
     private void PostLog(string message)
     {
-        Log?.Invoke(message);
+        var stamped = $"[{DateTime.Now:HH:mm:ss}] {message}";
+        Log?.Invoke(stamped);
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            ServerLog.Add(message);
+            ServerLog.Add(stamped);
             if (ServerLog.Count > 500)
                 ServerLog.RemoveAt(0);
         });

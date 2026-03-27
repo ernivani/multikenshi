@@ -20,6 +20,7 @@ namespace gameState {
 
     extern std::map<structs::AnimationClassHuman*, std::pair<std::string, long long>> chars;
     extern std::map<std::string, structs::AnimationClassHuman*> charsByName;
+    extern std::map<std::string, long long> charLastSeen;
     extern std::map<structs::Building*, std::pair<std::string, long long>> builds;
     extern std::map<std::string, structs::GameData*> DB;
     extern int squadSpawnBypassAmm;
