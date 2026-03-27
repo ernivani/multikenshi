@@ -153,38 +153,23 @@ public partial class PlayViewModel : ObservableObject
     {
         Changelog.Add(new ChangelogEntry
         {
-            Version = "0.4.1",
-            Date = "today",
+            Version = Program.Version,
+            Date = "now",
             Lines = new List<ChangelogLine>
             {
-                new("new", "Auto-updater \u2014 launcher, DLL and mod download from GitHub"),
-                new("new", "Version tracking in title bar, settings, and handshake"),
-                new("new", "Launcher self-update with restart"),
-                new("fix", "Dev mode detection \u2014 uses local build files"),
-            }
-        });
-        Changelog.Add(new ChangelogEntry
-        {
-            Version = "0.4",
-            Date = "today",
-            Lines = new List<ChangelogLine>
-            {
+                new("new", "Launcher auto-update from GitHub releases"),
+                new("new", "DLL auto-download on connect"),
                 new("new", "Host-authoritative speed control (/speed command)"),
-                new("new", "setPaused function discovery via displacement scan"),
-                new("new", "60Hz speed enforcement \u2014 blocks local speed button clicks"),
-                new("new", "Server heartbeat (ping/pong, 45s disconnect)"),
-                new("new", "Auto-reconnection (3 attempts) with error dialog"),
-                new("new", "Host change notification on disconnect"),
-                new("new", "Faction filtering via game-thread charFactions map"),
-                new("new", "Character name re-read \u2014 catches creation renames"),
-                new("new", "Copy button for server logs"),
+                new("new", "setPaused discovery \u2014 proper pause/unpause with UI"),
+                new("new", "60Hz speed enforcement \u2014 blocks local speed clicks"),
+                new("new", "Server heartbeat + auto-reconnection (3 attempts)"),
                 new("new", "Player ID persists across reconnections"),
-                new("fix", "Merged ps+ws into single message \u2014 no protocol desync"),
+                new("new", "Faction filtering + character name tracking"),
+                new("new", "Copy button for server logs"),
+                new("fix", "Merged protocol \u2014 no desync (1 send/1 receive)"),
                 new("fix", "Warmup delay \u2014 no sync during character creation"),
-                new("fix", "SEH-guarded map walks with 3x retry + 2s cache"),
-                new("fix", "Stale character filter disabled while game paused"),
-                new("fix", "Speed cap at 5 to prevent disconnect storms"),
-                new("fix", "Building stale timeout extended to 60s"),
+                new("fix", "SEH-guarded map walks with retry + cache"),
+                new("fix", "Speed cap at 5"),
             }
         });
         Changelog.Add(new ChangelogEntry
@@ -267,12 +252,9 @@ public partial class PlayViewModel : ObservableObject
 
                 // Auto-download DLL + mod from GitHub releases if needed
                 _main.PostLog($"MultiKenshi v{Program.Version}");
-                var (dllUp, modUp, updateMsg) = await GitHubUpdater.CheckAndUpdate(_main.PostLog);
-                if (dllUp || modUp)
+                var (dllUp, updateMsg) = await GitHubUpdater.CheckAndUpdate(_main.PostLog);
+                if (dllUp)
                     _main.PostLog(updateMsg);
-
-                // Install mod to Kenshi's mods directory (copies from launcher dir)
-                GameConfigWriter.EnsureMod(_config.KenshiPath);
 
                 var process = ProcessLauncher.FindKenshiProcess();
                 int pid;
@@ -492,7 +474,7 @@ public partial class PlayViewModel : ObservableObject
         InstallMessage = "Checking for updates...";
 
         // Try downloading from GitHub first
-        var (dllUp, _, msg) = await GitHubUpdater.CheckAndUpdate(_main.PostLog);
+        var (dllUp, msg) = await GitHubUpdater.CheckAndUpdate(_main.PostLog);
         if (dllUp)
         {
             InstallMessage = "Downloaded from GitHub";

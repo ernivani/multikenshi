@@ -22,12 +22,6 @@ public partial class SettingsViewModel : ObservableObject
     private bool _dllExists;
 
     [ObservableProperty]
-    private bool _modInstalled;
-
-    [ObservableProperty]
-    private bool _modOutdated;
-
-    [ObservableProperty]
     private string _uninstallMessage = "";
 
     public SettingsViewModel(ConfigManager config, MainViewModel main)
@@ -135,16 +129,10 @@ public partial class SettingsViewModel : ObservableObject
             var exePath = Path.Combine(KenshiPath, "kenshi_x64.exe");
             ExeFound = File.Exists(exePath);
 
-            // Check mod status (read-only, no auto-install)
-            var modPath = Path.Combine(KenshiPath, "mods", "kenshi-online", "kenshi-online.mod");
-            ModInstalled = File.Exists(modPath);
-            ModOutdated = false;
         }
         else
         {
             ExeFound = false;
-            ModInstalled = false;
-            ModOutdated = false;
         }
 
         DllExists = ProcessLauncher.DllExists();

@@ -14,7 +14,6 @@ public static class GitHubUpdater
     private const string Repo = "ernivani/multikenshi";
     private const string ApiUrl = "https://api.github.com/repos/" + Repo + "/releases/latest";
     private const string DllName = "kenshi_multiplayer.dll";
-    private const string ModName = "kenshi-online.mod";
 
     private static readonly HttpClient _http = new()
     {
@@ -49,14 +48,13 @@ public static class GitHubUpdater
     /// Skips download in dev mode (uses local build files instead).
     /// Returns (dllUpdated, modUpdated, message).
     /// </summary>
-    public static async Task<(bool DllUpdated, bool ModUpdated, string Message)> CheckAndUpdate(
+    public static async Task<(bool DllUpdated, string Message)> CheckAndUpdate(
         Action<string>? log = null)
     {
-        // Dev mode: skip GitHub, use local files
         if (IsDevMode())
         {
             log?.Invoke("Dev mode — using local build files.");
-            return (false, false, "Dev mode");
+            return (false, "Dev mode");
         }
 
         try
@@ -69,85 +67,43 @@ public static class GitHubUpdater
             var tag = release.GetProperty("tag_name").GetString() ?? "";
             log?.Invoke($"Latest release: {tag}");
 
-            // Find asset URLs
-            var assets = release.GetProperty("assets");
-            string? dllUrl = null, modUrl = null;
-            long dllSize = 0, modSize = 0;
+            string? dllUrl = null;
+            long dllSize = 0;
 
-            foreach (var asset in assets.EnumerateArray())
+            foreach (var asset in release.GetProperty("assets").EnumerateArray())
             {
                 var name = asset.GetProperty("name").GetString() ?? "";
-                var url = asset.GetProperty("browser_download_url").GetString() ?? "";
-                var size = asset.GetProperty("size").GetInt64();
-
-                if (name == DllName) { dllUrl = url; dllSize = size; }
-                if (name == ModName) { modUrl = url; modSize = size; }
+                if (name == DllName)
+                {
+                    dllUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
+                    dllSize = asset.GetProperty("size").GetInt64();
+                }
             }
+
+            if (dllUrl == null)
+                return (false, "No DLL in release.");
 
             var launcherDir = Path.GetDirectoryName(
                 System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "")!;
+            var localDll = Path.Combine(launcherDir, DllName);
 
-            // Check what needs downloading
-            bool needDll = false, needMod = false;
+            bool needDll = !File.Exists(localDll) ||
+                           (dllSize > 0 && new FileInfo(localDll).Length != dllSize);
 
-            if (dllUrl != null)
-            {
-                var localDll = Path.Combine(launcherDir, DllName);
-                needDll = !File.Exists(localDll) ||
-                          (dllSize > 0 && new FileInfo(localDll).Length != dllSize);
-            }
+            if (!needDll)
+                return (false, "Up to date.");
 
-            if (modUrl != null)
-            {
-                var localMod = Path.Combine(launcherDir, ModName);
-                needMod = !File.Exists(localMod) ||
-                          (modSize > 0 && new FileInfo(localMod).Length != modSize);
-            }
+            log?.Invoke("Downloading DLL...");
+            var bytes = await _http.GetByteArrayAsync(dllUrl);
+            File.WriteAllBytes(localDll, bytes);
+            DllIntegrity.WriteHash(localDll);
 
-            if (!needDll && !needMod)
-                return (false, false, "Up to date.");
-
-            // Download in parallel
-            var tasks = new System.Collections.Generic.List<Task>();
-            bool dllUpdated = false, modUpdated = false;
-
-            if (needDll && dllUrl != null)
-            {
-                log?.Invoke("Downloading DLL...");
-                tasks.Add(Task.Run(async () =>
-                {
-                    var bytes = await _http.GetByteArrayAsync(dllUrl);
-                    var localDll = Path.Combine(launcherDir, DllName);
-                    File.WriteAllBytes(localDll, bytes);
-                    DllIntegrity.WriteHash(localDll);
-                    dllUpdated = true;
-                }));
-            }
-
-            if (needMod && modUrl != null)
-            {
-                log?.Invoke("Downloading mod...");
-                tasks.Add(Task.Run(async () =>
-                {
-                    var bytes = await _http.GetByteArrayAsync(modUrl);
-                    File.WriteAllBytes(Path.Combine(launcherDir, ModName), bytes);
-                    modUpdated = true;
-                }));
-            }
-
-            await Task.WhenAll(tasks);
-
-            var parts = new System.Collections.Generic.List<string>();
-            if (dllUpdated) parts.Add("DLL");
-            if (modUpdated) parts.Add("mod");
-            var msg = $"Downloaded {string.Join(" + ", parts)}.";
-            log?.Invoke(msg);
-
-            return (dllUpdated, modUpdated, msg);
+            log?.Invoke($"DLL updated ({bytes.Length / 1024}KB).");
+            return (true, "DLL updated.");
         }
         catch (Exception ex)
         {
-            return (false, false, $"Update check failed: {ex.Message}");
+            return (false, $"Update check failed: {ex.Message}");
         }
     }
 

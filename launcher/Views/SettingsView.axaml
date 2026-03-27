@@ -34,14 +34,6 @@
       <TextBlock Name="DllStatusLabel" FontSize="12" VerticalAlignment="Center" />
     </StackPanel>
 
-    <!-- Mod status -->
-    <TextBlock Text="MOD STATUS" FontSize="12" Foreground="#6b6b6b" Margin="0,20,0,6" />
-    <StackPanel Orientation="Horizontal" Spacing="8">
-      <Ellipse Name="ModDot" Width="6" Height="6" VerticalAlignment="Center" />
-      <TextBlock Text="kenshi-online.mod" FontSize="12" Foreground="#3a3a3a" VerticalAlignment="Center" />
-      <TextBlock Name="ModStatusLabel" FontSize="12" VerticalAlignment="Center" />
-    </StackPanel>
-
     <!-- Uninstall -->
     <TextBlock Text="DANGER ZONE" FontSize="12" Foreground="#6b6b6b" Margin="0,36,0,4" />
     <TextBlock Text="Remove all mod files (DLL, config). Your settings are preserved."

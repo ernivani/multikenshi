@@ -25,7 +25,7 @@ public partial class SettingsView : UserControl
                 UpdateUI(vm);
                 vm.PropertyChanged += (_, e) =>
                 {
-                    if (e.PropertyName is nameof(vm.ExeFound) or nameof(vm.DllExists) or nameof(vm.ModInstalled) or nameof(vm.KenshiPath))
+                    if (e.PropertyName is nameof(vm.ExeFound) or nameof(vm.DllExists) or nameof(vm.KenshiPath))
                         UpdateUI(vm);
                 };
             }
@@ -52,9 +52,5 @@ public partial class SettingsView : UserControl
         DllStatusLabel.Text = vm.DllExists ? "ready" : "missing";
         DllStatusLabel.Foreground = vm.DllExists ? GreenBrush : RedBrush;
 
-        // Mod status
-        ModDot.Fill = vm.ModInstalled ? GreenBrush : RedBrush;
-        ModStatusLabel.Text = vm.ModInstalled ? "installed" : "missing — will install on play";
-        ModStatusLabel.Foreground = vm.ModInstalled ? GreenBrush : RedBrush;
     }
 }
