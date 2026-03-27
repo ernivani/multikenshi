@@ -198,37 +198,59 @@ namespace gameState {
         return playerFactionName;
     }
 
-    // Get player's squad characters as JSON array
-    // Filters by player faction using charFactions map (populated on game thread)
+    // Cached last successful squad result — used when SEH walk fails
+    static json cachedSquadJson = json::array();
+    static long long cachedSquadTime = 0;
+
+    // Get ALL visible characters as JSON array
+    // No faction filter — all characters synced for shared-save multiplayer
+    // Caches successful results — returns cache when walk fails (max 2s stale)
     json getSquadJson() {
         json arr = json::array();
         if (!player) return arr;
 
-        // Filter by player faction if known
-        std::string ourFaction = playerFactionName;
-        const char* filterFac = ourFaction.empty() ? nullptr : ourFaction.c_str();
-        int filterLen = (int)ourFaction.size();
+        // No faction filter — send everything
+        const char* filterFac = nullptr;
+        int filterLen = 0;
 
+        // Try up to 3 times to walk the map
         CharEntry entries[MAX_CHAR_ENTRIES];
-        int count = safeCollectChars(&charsByName, &charLastSeen, &charFactions,
+        int count = 0;
+        for (int attempt = 0; attempt < 3 && count == 0; attempt++) {
+            count = safeCollectChars(&charsByName, &charLastSeen, &charFactions,
                                      filterFac, filterLen, entries, MAX_CHAR_ENTRIES);
+        }
 
         long long now = GetTickCount64();
-        for (int i = 0; i < count; ++i) {
-            // Skip stale characters (not seen in 10s)
-            if (entries[i].lastSeen > 0 && now - entries[i].lastSeen > 10000) continue;
+        bool gamePaused = gameWorld && gameWorld->paused;
 
-            float x, y, z;
-            if (!safeGetPosition(entries[i].anim, x, y, z)) continue;
-            if (x == 0.0f && y == 0.0f && z == 0.0f) continue;
+        if (count > 0) {
+            for (int i = 0; i < count; ++i) {
+                // Skip stale characters (not seen in 10s) — but not while paused
+                if (!gamePaused && entries[i].lastSeen > 0 && now - entries[i].lastSeen > 10000) continue;
 
-            json ch;
-            ch["n"] = std::string(entries[i].name);
-            ch["x"] = x;
-            ch["y"] = y;
-            ch["z"] = z;
-            arr.push_back(ch);
+                float x, y, z;
+                if (!safeGetPosition(entries[i].anim, x, y, z)) continue;
+                if (x == 0.0f && y == 0.0f && z == 0.0f) continue;
+
+                json ch;
+                ch["n"] = std::string(entries[i].name);
+                ch["x"] = x;
+                ch["y"] = y;
+                ch["z"] = z;
+                arr.push_back(ch);
+            }
         }
+
+        if (arr.size() > 0) {
+            // Cache successful result
+            cachedSquadJson = arr;
+            cachedSquadTime = now;
+        } else if (cachedSquadJson.size() > 0 && (now - cachedSquadTime) < 2000) {
+            // Walk failed but cache is fresh — use cached positions
+            return cachedSquadJson;
+        }
+
         return arr;
     }
 
@@ -237,28 +259,49 @@ namespace gameState {
         return json::array();
     }
 
-    // Get buildings as JSON array
+    // Cached last successful building result
+    static json cachedBuildJson = json::array();
+    static long long cachedBuildTime = 0;
+
+    // Get buildings as JSON array (with cache for SEH walk failures)
     json getBuildingJson() {
         json arr = json::array();
 
-        // Collect raw entries from live map under SEH protection
+        // Try up to 3 times
         BuildEntry entries[MAX_BUILD_ENTRIES];
-        int count = safeCollectBuilds(&builds, entries, MAX_BUILD_ENTRIES);
+        int count = 0;
+        for (int attempt = 0; attempt < 3 && count == 0; attempt++) {
+            count = safeCollectBuilds(&builds, entries, MAX_BUILD_ENTRIES);
+        }
 
         long long now = GetTickCount64();
-        for (int i = 0; i < count; ++i) {
-            if (now - entries[i].lastSeen > 30000) continue;
+        bool gamePaused = gameWorld && gameWorld->paused;
 
-            structs::Building* bld = entries[i].bld;
+        if (count > 0) {
+            for (int i = 0; i < count; ++i) {
+                // Skip stale buildings (60s timeout, extended from 30s)
+                // Don't filter while paused
+                if (!gamePaused && now - entries[i].lastSeen > 60000) continue;
 
-            json b;
-            b["n"] = std::string(entries[i].name);
-            b["x"] = bld->x;
-            b["y"] = bld->y;
-            b["z"] = bld->z;
-            b["cond"] = bld->condition;
-            arr.push_back(b);
+                structs::Building* bld = entries[i].bld;
+
+                json b;
+                b["n"] = std::string(entries[i].name);
+                b["x"] = bld->x;
+                b["y"] = bld->y;
+                b["z"] = bld->z;
+                b["cond"] = bld->condition;
+                arr.push_back(b);
+            }
         }
+
+        if (arr.size() > 0) {
+            cachedBuildJson = arr;
+            cachedBuildTime = now;
+        } else if (cachedBuildJson.size() > 0 && (now - cachedBuildTime) < 5000) {
+            return cachedBuildJson;
+        }
+
         return arr;
     }
 }

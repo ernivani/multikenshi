@@ -68,6 +68,7 @@ public class RelayServer
     private readonly List<TcpClient> _tcpClients = new();
     private readonly Dictionary<int, TcpClient> _tcpMap = new();
     private readonly Dictionary<int, NetworkStream> _streamMap = new();
+    private readonly Dictionary<string, int> _steamIdToPlayerId = new(); // persist IDs across reconnects
     private readonly object _lock = new();
     private int _nextId = 1;
 
@@ -172,6 +173,7 @@ public class RelayServer
             _tcpClients.Clear();
             _tcpMap.Clear();
             _streamMap.Clear();
+            _steamIdToPlayerId.Clear();
             _players.Clear();
             _hostBuildings.Clear();
             _hostId = -1;
@@ -304,11 +306,19 @@ public class RelayServer
             var steamId = handshake.TryGetProperty("steamId", out var si) ? si.GetString() ?? "" : "";
             var version = handshake.TryGetProperty("v", out var v) ? v.GetString() ?? "" : "";
 
-            // Step 2: Assign ID and host
+            // Step 2: Assign ID and host (reuse ID for returning players)
             bool isHost;
             lock (_lock)
             {
-                clientId = _nextId++;
+                if (!string.IsNullOrEmpty(steamId) && _steamIdToPlayerId.TryGetValue(steamId, out var prevId))
+                    clientId = prevId; // returning player — reuse their ID
+                else
+                {
+                    clientId = _nextId++;
+                    if (!string.IsNullOrEmpty(steamId))
+                        _steamIdToPlayerId[steamId] = clientId;
+                }
+
                 isHost = _hostId == -1;
                 if (isHost) _hostId = clientId;
 
@@ -621,6 +631,7 @@ public class RelayServer
                 }
                 else if (float.TryParse(arg, NumberStyles.Float, CultureInfo.InvariantCulture, out var s) && s > 0)
                 {
+                    if (s > 5) { PostLog($"Speed capped to 5 (requested {s})."); s = 5; }
                     _speedOverride = s;
                     _speed = s;
                     PostLog($"Speed override set to {s}. Use '/speed reset' to clear.");

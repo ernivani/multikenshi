@@ -154,8 +154,9 @@ namespace network {
 
         // Wait until gameplay starts before sending entity data.
         // During character creation, game speed is 0 and map walks can interfere.
-        long long syncStartTime = GetTickCount64();
-        bool fullSyncActive = false;
+        // Static: once activated, stays active across reconnections.
+        static long long syncStartTime = GetTickCount64();
+        static bool fullSyncActive = false;
         long long lastSyncTime = 0;
         const long long SYNC_INTERVAL = 200; // 5Hz for entity sync
 
@@ -312,6 +313,26 @@ namespace network {
             currentFd = tryReconnect();
             if (currentFd == INVALID_SOCKET) {
                 running = false;
+
+                // Force-pause the game so nothing happens while dialog is shown
+                if (gameState::gameWorld) {
+                    gameState::gameWorld->gameSpeed = 0.0f;
+                    gameState::gameWorld->paused = true;
+                    // Use setPaused if available for proper UI freeze
+                    if (offsets::setPaused != 0) {
+                        auto pauseFn = reinterpret_cast<void(*)(structs::GameWorldClass*, bool)>(
+                            gameState::moduleBase + offsets::setPaused);
+                        pauseFn(gameState::gameWorld, true);
+                    }
+                }
+
+                MessageBoxA(NULL,
+                    "Lost connection to the multiplayer server.\n"
+                    "Reconnection failed after 3 attempts.\n\n"
+                    "The game will now close.",
+                    "Kenshi Multiplayer — Disconnected",
+                    MB_OK | MB_ICONERROR | MB_TOPMOST);
+                TerminateProcess(GetCurrentProcess(), 1);
                 break;
             }
 
