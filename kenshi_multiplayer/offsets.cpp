@@ -216,4 +216,74 @@ namespace offsets {
 
         return critical;
     }
+
+    bool resolveSquadSpawnLate() {
+        if (spawnSquadFuncCall != 0) return true; // already found
+        if (squadSpawningHand == 0) return false; // no target
+
+        uintptr_t moduleBase = (uintptr_t)GetModuleHandle(NULL);
+        uintptr_t targetAddr = moduleBase + squadSpawningHand;
+        patternScan::SectionInfo text = patternScan::getTextSection();
+        if (text.size == 0) return false;
+
+        std::cout << "  Late scan: searching .text for refs to squadSpawningHand (0x"
+                  << std::hex << targetAddr << std::dec << ")...\n";
+
+        uintptr_t textEnd = text.base + text.size - 7;
+        int refCount = 0;
+
+        for (uintptr_t pos = text.base; pos < textEnd; pos++) {
+            uint8_t b0 = *(uint8_t*)pos;
+            uint8_t b1 = *(uint8_t*)(pos + 1);
+            uint8_t b2 = *(uint8_t*)(pos + 2);
+
+            // Check for MOV/LEA reg, [rip+disp32]
+            bool isRipRelative = false;
+            int instrLen = 0;
+
+            // 48/4C 8B xx (MOV with REX.W) where ModRM has mod=00, rm=101 (RIP-relative)
+            if ((b0 == 0x48 || b0 == 0x4C) && b1 == 0x8B && (b2 & 0xC7) == 0x05) {
+                isRipRelative = true;
+                instrLen = 7;
+            }
+            // 48/4C 8D xx (LEA with REX.W)
+            if ((b0 == 0x48 || b0 == 0x4C) && b1 == 0x8D && (b2 & 0xC7) == 0x05) {
+                isRipRelative = true;
+                instrLen = 7;
+            }
+
+            if (!isRipRelative) continue;
+
+            int32_t disp = *(int32_t*)(pos + 3);
+            uintptr_t resolved = (pos + instrLen) + disp;
+
+            if (resolved != targetAddr) continue;
+            refCount++;
+
+            // Skip __security_cookie refs (followed by xor reg, rsp)
+            bool cookie = false;
+            for (int k = 0; k < 10; k++) {
+                uint8_t x0 = *(uint8_t*)(pos + instrLen + k);
+                uint8_t x1 = *(uint8_t*)(pos + instrLen + k + 1);
+                uint8_t x2 = *(uint8_t*)(pos + instrLen + k + 2);
+                if (x0 == 0x48 && x1 == 0x33 && (x2 & 0x07) == 0x04) { cookie = true; break; }
+                if (x0 == 0x48 && x1 == 0x31 && (x2 & 0x38) == 0x20) { cookie = true; break; }
+            }
+            if (cookie) continue;
+
+            // Found a real reference to squadSpawningHand
+            spawnSquadFuncCall = pos - moduleBase;
+
+            // Also derive gameWorldOffset from squadSpawningHand
+            if (gameWorldOffset == 0)
+                gameWorldOffset = squadSpawningHand - 0x4A0;
+
+            std::cout << "  Late scan: found spawnSquadFuncCall at 0x" << std::hex
+                      << spawnSquadFuncCall << std::dec << " (ref #" << refCount << ")\n";
+            return true;
+        }
+
+        std::cout << "  Late scan: " << refCount << " refs found, none usable for spawnSquadFuncCall\n";
+        return false;
+    }
 }

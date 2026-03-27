@@ -23,4 +23,8 @@ namespace offsets {
     extern uintptr_t characterCreate; // RootObjectFactory::process
 
     bool resolveAllOffsets();
+
+    // Called after runtime discovery of GameDataManagerMain.
+    // Finds spawnSquadFuncCall by scanning for references to squadSpawningHand.
+    bool resolveSquadSpawnLate();
 }

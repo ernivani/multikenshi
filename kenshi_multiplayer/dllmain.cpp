@@ -167,7 +167,13 @@ void dllmain() {
     gameState::scanHeap();
     std::cout << utils::ts() << "Game loaded." << std::endl;
 
-    // 9. Setup hooks and tracked variables
+    // 9. Late offset resolution (now that we have runtime-discovered addresses)
+    crashlog::phase("late_offsets");
+    if (offsets::spawnSquadFuncCall == 0 && offsets::squadSpawningHand != 0) {
+        offsets::resolveSquadSpawnLate();
+    }
+
+    // 10. Setup hooks and tracked variables
     crashlog::phase("setup_hooks");
     gameState::init();
     std::cout << utils::ts() << "Hooks installed." << std::endl;
