@@ -202,16 +202,17 @@ namespace gameState {
     static json cachedSquadJson = json::array();
     static long long cachedSquadTime = 0;
 
-    // Get ALL visible characters as JSON array
-    // No faction filter — all characters synced for shared-save multiplayer
+    // Get player's faction characters as JSON array
+    // Filters by playerFactionName so only YOUR characters are sent
     // Caches successful results — returns cache when walk fails (max 2s stale)
     json getSquadJson() {
         json arr = json::array();
         if (!player) return arr;
 
-        // No faction filter — send everything
-        const char* filterFac = nullptr;
-        int filterLen = 0;
+        // Filter by player faction
+        std::string ourFaction = playerFactionName;
+        const char* filterFac = ourFaction.empty() ? nullptr : ourFaction.c_str();
+        int filterLen = (int)ourFaction.size();
 
         // Try up to 3 times to walk the map
         CharEntry entries[MAX_CHAR_ENTRIES];

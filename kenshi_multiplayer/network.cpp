@@ -120,7 +120,7 @@ namespace network {
         hello["t"] = "hello";
         hello["steamName"] = steamName;
         hello["steamId"] = steamId;
-        hello["v"] = "0.4.5";
+        hello["v"] = "0.4.6";
         sendLine(client_fd, hello.dump());
         std::cout << utils::ts() << "Handshake sent." << std::endl;
 
@@ -165,20 +165,29 @@ namespace network {
 
             // Enforce server speed instantly (guest or override)
             if (::g_enforcedSpeed >= 0.0f && gameState::gameWorld) {
+                static auto gamePauseFn = offsets::setPaused != 0
+                    ? reinterpret_cast<void(*)(structs::GameWorldClass*, bool)>(
+                          gameState::moduleBase + offsets::setPaused)
+                    : (void(*)(structs::GameWorldClass*, bool))nullptr;
+
                 gameState::gameWorld->gameSpeed = ::g_enforcedSpeed;
 
-                // Use setPaused function if available (properly updates UI)
-                // Without it, we can only write gameSpeed (UI won't update)
-                if (::g_enforcedSpeed > 0.0f && gameState::gameWorld->paused) {
-                    // Game is paused but server says run — unpause properly
-                    static auto gamePauseFn = offsets::setPaused != 0
-                        ? reinterpret_cast<void(*)(structs::GameWorldClass*, bool)>(
-                              gameState::moduleBase + offsets::setPaused)
-                        : (void(*)(structs::GameWorldClass*, bool))nullptr;
+                bool shouldBePaused = (::g_enforcedSpeed == 0.0f);
+                if (shouldBePaused && !gameState::gameWorld->paused) {
+                    // Server says pause — pause properly
+                    if (gamePauseFn)
+                        gamePauseFn(gameState::gameWorld, true);
+                    else
+                        gameState::gameWorld->paused = true;
+                }
+                else if (!shouldBePaused && gameState::gameWorld->paused) {
+                    // Server says run — unpause properly
                     if (gamePauseFn) {
                         gameState::gameWorld->paused = false;
                         gamePauseFn(gameState::gameWorld, true);
                         gamePauseFn(gameState::gameWorld, false);
+                    } else {
+                        gameState::gameWorld->paused = false;
                     }
                 }
             }
