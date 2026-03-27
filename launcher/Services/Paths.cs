@@ -12,7 +12,25 @@ public static class Paths
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "MultiKenshi");
 
-    public static readonly string DllPath = Path.Combine(AppData, "kenshi_multiplayer.dll");
+    public static readonly string DllPath = FindDllPath();
+
+    /// <summary>
+    /// In dev mode, use the local build output. In published mode, use AppData.
+    /// </summary>
+    private static string FindDllPath()
+    {
+        // Check for local build output (dev mode)
+        var dir = Path.GetDirectoryName(
+            System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "");
+        while (dir != null)
+        {
+            var buildDll = Path.Combine(dir, "kenshi_multiplayer", "x64", "Release", "kenshi_multiplayer.dll");
+            if (File.Exists(buildDll)) return buildDll; // dev mode — use build output directly
+            dir = Path.GetDirectoryName(dir);
+        }
+        // Published mode — use AppData
+        return Path.Combine(AppData, "kenshi_multiplayer.dll");
+    }
     public static readonly string ConfigPath = Path.Combine(AppData, "launcher.ini");
     public static readonly string SavesDir = Path.Combine(AppData, "saves");
 
