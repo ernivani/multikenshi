@@ -20,6 +20,7 @@ namespace offsets {
     extern uintptr_t spawnSquadBypass;
     extern uintptr_t spawnSquadFuncCall;
     extern uintptr_t squadSpawningHand;
+    extern uintptr_t characterCreate; // RootObjectFactory::process
 
     bool resolveAllOffsets();
 }

@@ -23,6 +23,7 @@ namespace offsets {
     uintptr_t spawnSquadBypass = 0;
     uintptr_t spawnSquadFuncCall = 0;
     uintptr_t squadSpawningHand = 0;
+    uintptr_t characterCreate = 0;
 
     bool resolveAllOffsets() {
         uintptr_t moduleBase = (uintptr_t)GetModuleHandle(NULL);
@@ -117,6 +118,23 @@ namespace offsets {
                     std::cout << "  squadSpawningHand not found in function (Steam binary?).\n";
                     std::cout << "  Will use runtime discovery for data offsets.\n";
                 }
+            }
+        }
+
+        // characterCreate: find via string anchor "[RootObjectFactory::process] Character"
+        {
+            const char* anchor = "[RootObjectFactory::process] Character";
+            uintptr_t funcAddr = patternScan::findFunctionByString(anchor, strlen(anchor));
+            if (funcAddr) {
+                characterCreate = funcAddr - moduleBase;
+                // Check if it has mov rax, rsp prologue
+                bool hasMovRaxRsp = (*(uint8_t*)funcAddr == 0x48 &&
+                                     *(uint8_t*)(funcAddr+1) == 0x8B &&
+                                     *(uint8_t*)(funcAddr+2) == 0xC4);
+                std::cout << "  characterCreate:     0x" << std::hex << characterCreate << std::dec
+                          << (hasMovRaxRsp ? " [mov rax,rsp]" : "") << "\n";
+            } else {
+                std::cout << "  characterCreate: not found (NPC hijacking unavailable)\n";
             }
         }
 
