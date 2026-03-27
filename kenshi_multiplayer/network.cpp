@@ -23,12 +23,20 @@ namespace network {
     std::string steamName = "Player";
     std::string steamId = "";
 
+    // Connection info for reconnection
+    static std::string serverIp;
+    static int serverPort = 0;
+
     bool initializeWinsock() {
         WSADATA wsaData;
         return WSAStartup(MAKEWORD(2, 2), &wsaData) == 0;
     }
 
     SOCKET connectToServer(const std::string& ip, int port) {
+        // Store for reconnection
+        serverIp = ip;
+        serverPort = port;
+
         SOCKET client_fd = socket(AF_INET, SOCK_STREAM, 0);
         if (client_fd == INVALID_SOCKET) {
             std::cerr << utils::ts() << "Socket creation failed!\n";
@@ -46,10 +54,16 @@ namespace network {
             return INVALID_SOCKET;
         }
 
+        // Set receive timeout to prevent indefinite blocking (10 seconds)
+        DWORD timeout = 10000;
+        setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+
         return client_fd;
     }
 
     // Read one newline-delimited JSON message from accumulating buffer
+    // Returns true on success, false on disconnect/error
+    // Handles recv timeout (WSAETIMEDOUT) by retrying if still running
     static bool readLine(SOCKET fd, std::string& buffer, std::string& outLine) {
         while (true) {
             size_t pos = buffer.find('\n');
@@ -62,9 +76,19 @@ namespace network {
             }
             char tmp[65536];
             int n = recv(fd, tmp, sizeof(tmp) - 1, 0);
-            if (n <= 0) return false;
-            tmp[n] = '\0';
-            buffer.append(tmp, n);
+            if (n > 0) {
+                tmp[n] = '\0';
+                buffer.append(tmp, n);
+                continue;
+            }
+            if (n == 0) return false; // graceful disconnect
+            // n < 0: check if it's a timeout
+            int err = WSAGetLastError();
+            if (err == WSAETIMEDOUT) {
+                if (!running) return false;
+                continue; // retry recv after timeout
+            }
+            return false; // real error
         }
     }
 
@@ -82,98 +106,198 @@ namespace network {
         }
     }
 
-    void receiveMessages(SOCKET client_fd) {
-        std::string buffer;
+    // Perform handshake: send hello, receive welcome
+    // Returns true on success
+    static bool doHandshake(SOCKET client_fd, std::string& buffer) {
+        // Send handshake
+        json hello;
+        hello["t"] = "hello";
+        hello["steamName"] = steamName;
+        hello["steamId"] = steamId;
+        hello["v"] = "0.3";
+        sendLine(client_fd, hello.dump());
+        std::cout << utils::ts() << "Handshake sent." << std::endl;
+
+        // Read welcome
+        std::string line;
+        if (!readLine(client_fd, buffer, line)) {
+            std::cerr << utils::ts() << "Server disconnected during handshake!\n";
+            return false;
+        }
+        try {
+            json welcome = json::parse(line);
+            if (welcome.value("t", "") != "welcome") {
+                std::cerr << utils::ts() << "Expected welcome, got: " << line << "\n";
+                return false;
+            }
+            playerId = welcome.value("id", -1);
+            isHost = welcome.value("isHost", false);
+            std::cout << utils::ts() << "Welcome! Player ID: " << playerId
+                      << (isHost ? " [HOST]" : " [GUEST]") << std::endl;
+            return true;
+        }
+        catch (const std::exception& e) {
+            std::cerr << utils::ts() << "Failed to parse welcome: " << e.what() << "\n";
+            return false;
+        }
+    }
+
+    // Main sync loop: 1 send → 1 receive per cycle, throttled to ~5Hz
+    static void syncLoop(SOCKET client_fd, std::string& buffer) {
         std::string line;
 
-        // Step 1: Send handshake
-        {
-            json hello;
-            hello["t"] = "hello";
-            hello["steamName"] = steamName;
-            hello["steamId"] = steamId;
-            hello["v"] = "0.3";
-            sendLine(client_fd, hello.dump());
-            std::cout << utils::ts() << "Handshake sent." << std::endl;
-        }
+        // Wait until gameplay starts before sending entity data.
+        // During character creation, game speed is 0 and map walks can interfere.
+        // Activate full sync when: game speed > 0 (gameplay started) AND at least 5s passed.
+        long long syncStartTime = GetTickCount64();
+        bool fullSyncActive = false;
 
-        // Step 2: Read welcome
-        {
-            if (!readLine(client_fd, buffer, line)) {
-                std::cerr << utils::ts() << "Server disconnected during handshake!\n";
-                running = false;
-                return;
-            }
-            try {
-                json welcome = json::parse(line);
-                if (welcome.value("t", "") != "welcome") {
-                    std::cerr << utils::ts() << "Expected welcome, got: " << line << "\n";
-                    running = false;
-                    return;
-                }
-                playerId = welcome.value("id", -1);
-                isHost = welcome.value("isHost", false);
-                std::cout << utils::ts() << "Welcome! Player ID: " << playerId
-                          << (isHost ? " [HOST]" : " [GUEST]") << std::endl;
-            }
-            catch (const std::exception& e) {
-                std::cerr << utils::ts() << "Failed to parse welcome: " << e.what() << "\n";
-                running = false;
-                return;
-            }
-        }
-
-        // Step 3: Main loop — send first, then receive
         while (running) {
-            // 3a. Send player state (our squad)
+            Sleep(200); // 5 updates/sec
+
+            if (!fullSyncActive) {
+                bool timeOk = (GetTickCount64() - syncStartTime) > 5000;
+                bool gameRunning = gameState::getSpeedFloat() > 0.0f;
+                if (timeOk && gameRunning) {
+                    fullSyncActive = true;
+                    std::cout << utils::ts() << "Full sync active (game running)." << std::endl;
+                }
+            }
+
+            // Build message — only include entity data after warmup
             try {
                 json ps;
                 ps["t"] = "ps";
                 ps["speed"] = gameState::getSpeedFloat();
-                ps["squad"] = gameState::getSquadJson();
+                ps["pf"] = gameState::getPlayerFaction();
+                if (fullSyncActive) {
+                    ps["chars"] = gameState::getSquadJson();
+                    ps["buildings"] = gameState::getBuildingJson();
+                } else {
+                    ps["chars"] = json::array();
+                    ps["buildings"] = json::array();
+                }
                 sendLine(client_fd, ps.dump());
             }
             catch (const std::exception& e) {
                 std::cerr << utils::ts() << "ERROR building player state: " << e.what() << "\n";
             }
 
-            // 3b. If host, also send world state (NPCs + buildings)
-            if (isHost) {
-                try {
-                    json ws;
-                    ws["t"] = "ws";
-                    ws["npcs"] = gameState::getNpcJson();
-                    ws["buildings"] = gameState::getBuildingJson();
-                    sendLine(client_fd, ws.dump());
-                }
-                catch (const std::exception& e) {
-                    std::cerr << utils::ts() << "ERROR building world state: " << e.what() << "\n";
-                }
-            }
-
-            // 3c. Receive world update from server
+            // Receive one message from server
             if (!readLine(client_fd, buffer, line)) {
                 std::cerr << utils::ts() << "Server disconnected!\n";
-                running = false;
                 break;
             }
 
             try {
-                json wu = json::parse(line);
-                std::string type = wu.value("t", "");
+                json msg = json::parse(line);
+                std::string type = msg.value("t", "");
+
                 if (type == "wu") {
-                    gameState::applyWorldUpdate(wu);
+                    // Only apply world updates when full sync is active
+                    // (avoids writing gameSpeed during character creation)
+                    if (fullSyncActive) {
+                        gameState::applyWorldUpdate(msg);
+                    }
+                }
+                else if (type == "ping") {
+                    json pong;
+                    pong["t"] = "pong";
+                    sendLine(client_fd, pong.dump());
+                }
+                else if (type == "hostChange") {
+                    isHost = msg.value("isHost", false);
+                    std::cout << utils::ts() << "Host status changed: "
+                              << (isHost ? "HOST" : "GUEST") << std::endl;
                 }
             }
             catch (const std::exception& e) {
-                std::cerr << utils::ts() << "ERROR parsing world update: " << e.what() << "\n";
+                std::cerr << utils::ts() << "ERROR parsing server message: " << e.what() << "\n";
                 std::cerr << utils::ts() << "  Raw: " << line.substr(0, 200) << "\n";
             }
         }
     }
 
+    // Attempt to reconnect to the server
+    // Returns valid socket on success, INVALID_SOCKET on failure
+    static SOCKET tryReconnect() {
+        std::cout << utils::ts() << "Attempting reconnection..." << std::endl;
+        for (int attempt = 1; attempt <= 3 && running; ++attempt) {
+            std::cout << utils::ts() << "Reconnect attempt " << attempt << "/3..." << std::endl;
+            Sleep(5000);
+            if (!running) break;
+
+            SOCKET fd = socket(AF_INET, SOCK_STREAM, 0);
+            if (fd == INVALID_SOCKET) continue;
+
+            sockaddr_in addr{};
+            addr.sin_family = AF_INET;
+            addr.sin_port = htons(serverPort);
+            inet_pton(AF_INET, serverIp.c_str(), &addr.sin_addr);
+
+            if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) != SOCKET_ERROR) {
+                // Set receive timeout on reconnected socket
+                DWORD timeout = 10000;
+                setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+                std::cout << utils::ts() << "Reconnected!" << std::endl;
+                return fd;
+            }
+            closesocket(fd);
+        }
+        std::cerr << utils::ts() << "Reconnection failed after 3 attempts." << std::endl;
+        return INVALID_SOCKET;
+    }
+
+    void receiveMessages(SOCKET client_fd) {
+        std::string buffer;
+
+        // Step 1: Handshake
+        if (!doHandshake(client_fd, buffer)) {
+            running = false;
+            return;
+        }
+
+        // Step 2: Wait for player detection before starting sync
+        std::cout << utils::ts() << "Waiting for player detection..." << std::endl;
+        for (int i = 0; i < 60 && !gameState::player; ++i)
+            Sleep(500);
+
+        if (!gameState::player) {
+            std::cerr << utils::ts() << "WARNING: Player not detected after 30s!" << std::endl;
+        } else {
+            std::cout << utils::ts() << "Player detected, starting sync." << std::endl;
+        }
+
+        // Step 3: Main loop with reconnection
+        SOCKET currentFd = client_fd;
+        while (running) {
+            syncLoop(currentFd, buffer);
+
+            if (!running) break;
+
+            // Connection lost — try to reconnect
+            closesocket(currentFd);
+            currentFd = tryReconnect();
+            if (currentFd == INVALID_SOCKET) {
+                running = false;
+                break;
+            }
+
+            // Re-handshake on new connection
+            buffer.clear();
+            if (!doHandshake(currentFd, buffer)) {
+                closesocket(currentFd);
+                running = false;
+                break;
+            }
+            std::cout << utils::ts() << "Sync resumed after reconnection." << std::endl;
+        }
+
+        closesocket(currentFd);
+    }
+
     void cleanup(SOCKET client_fd) {
-        closesocket(client_fd);
+        // client_fd is already closed by receiveMessages
         WSACleanup();
     }
 }

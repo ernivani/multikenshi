@@ -85,7 +85,7 @@ public partial class SavesViewModel : ObservableObject
     private void CreateSave()
     {
         var name = string.IsNullOrWhiteSpace(NewSaveName) ? "New Save" : NewSaveName.Trim();
-        _saveManager.CreateSave(name, 7777, 8, "");
+        _saveManager.CreateSave(name, 8080, 8, "");
         NewSaveName = "";
         RefreshSaves();
     }

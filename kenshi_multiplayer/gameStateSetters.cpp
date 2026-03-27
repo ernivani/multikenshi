@@ -82,9 +82,32 @@ namespace gameState {
         }
     }
 
+    static float lastAppliedSpeed = -1.0f;
     static void applySpeedFromWU(float speed) {
         if (!gameWorld) return;
-        setSpeed(std::to_string(speed));
+        // Continuously enforce speed (game overwrites gameSpeed each frame)
+        gameWorld->gameSpeed = speed;
+        if (speed != lastAppliedSpeed) {
+            lastAppliedSpeed = speed;
+            std::cout << utils::ts() << "Speed applied: " << speed << std::endl;
+        }
+    }
+
+    // SEH-safe lookup: walk the map to find a key, return the value pointer.
+    // Can't use std::string inside __try (MSVC SEH restriction), so we
+    // manually compare c_str() of each entry.
+    __declspec(nothrow) static structs::AnimationClassHuman* safeFindChar(
+        std::map<std::string, structs::AnimationClassHuman*>* mapPtr,
+        const char* name, size_t nameLen)
+    {
+        __try {
+            for (auto it = mapPtr->begin(); it != mapPtr->end(); ++it) {
+                if (it->first.size() == nameLen && memcmp(it->first.c_str(), name, nameLen) == 0)
+                    return it->second;
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {}
+        return nullptr;
     }
 
     static void applyCharacterPosition(const json& charData) {
@@ -96,35 +119,29 @@ namespace gameState {
         float z = charData.value("z", 0.0f);
         if (x == 0.0f && y == 0.0f && z == 0.0f) return;
 
-        auto it = charsByName.find(name);
-        if (it != charsByName.end()) {
-            safeSetPosition(it->second, x, y, z);
+        structs::AnimationClassHuman* anim = safeFindChar(&charsByName, name.c_str(), name.size());
+        if (anim) {
+            safeSetPosition(anim, x, y, z);
         }
     }
 
     void applyWorldUpdate(const json& wu) {
+
         // Apply speed
         if (wu.contains("speed")) {
             float speed = wu["speed"].get<float>();
             applySpeedFromWU(speed);
         }
 
-        // Apply other players' squads
+        // Apply other players' characters
         if (wu.contains("players")) {
             for (auto it = wu["players"].begin(); it != wu["players"].end(); ++it) {
                 const json& playerData = *it;
-                if (playerData.contains("squad")) {
-                    for (auto sq = playerData["squad"].begin(); sq != playerData["squad"].end(); ++sq) {
-                        applyCharacterPosition(*sq);
+                if (playerData.contains("chars")) {
+                    for (auto ch = playerData["chars"].begin(); ch != playerData["chars"].end(); ++ch) {
+                        applyCharacterPosition(*ch);
                     }
                 }
-            }
-        }
-
-        // Apply NPCs (from host)
-        if (wu.contains("npcs")) {
-            for (auto it = wu["npcs"].begin(); it != wu["npcs"].end(); ++it) {
-                applyCharacterPosition(*it);
             }
         }
 

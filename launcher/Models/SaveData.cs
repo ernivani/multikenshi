@@ -16,7 +16,7 @@ public class SaveData
 
 public class ServerConfig
 {
-    public int Port { get; set; } = 7777;
+    public int Port { get; set; } = 8080;
     public int MaxPlayers { get; set; } = 8;
     public string Password { get; set; } = "";
 }

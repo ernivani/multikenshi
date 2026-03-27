@@ -60,6 +60,7 @@ namespace gameState {
     std::map<structs::AnimationClassHuman*, std::pair<std::string, long long>> chars;
     std::map<std::string, structs::AnimationClassHuman*> charsByName;
     std::map<std::string, long long> charLastSeen;
+    std::map<std::string, std::string> charFactions;
     std::map<structs::Building*, std::pair<std::string, long long>> builds;
     structs::AnimationClassHuman* player = 0;
     structs::AnimationClassHuman* otherplayers = 0;
@@ -88,24 +89,49 @@ namespace gameState {
             charsByName[nameStr] = num;
             charLastSeen[nameStr] = GetTickCount64();
 
+            // Store faction name (safe on game thread)
+            structs::Faction* fac = (structs::Faction*)safeReadPtr(ch, 0x10);
+            if (fac) {
+                const char* facName = fac->getName();
+                if (facName && utils::isValidName(facName))
+                    charFactions[nameStr] = facName;
+            }
+
             // Auto-detect player: first character we see becomes our player
-            // (the player's characters are always loaded first)
             if (!player) {
                 player = num;
-                // Read faction name from this character
-                structs::Faction* fac = (structs::Faction*)safeReadPtr(ch, 0x10);
-                if (fac) {
-                    const char* facName = fac->getName();
-                    if (facName && utils::isValidName(facName)) {
-                        playerFactionName = facName;
-                        std::cout << utils::ts() << "Player detected: " << nameStr
-                                  << " (faction: " << playerFactionName << ")" << std::endl;
-                    }
-                }
+                if (charFactions.count(nameStr))
+                    playerFactionName = charFactions[nameStr];
+                std::cout << utils::ts() << "Player detected: " << nameStr
+                          << " (faction: " << playerFactionName << ")" << std::endl;
             }
         } else {
             // Update charsByName mapping (pointer may have changed)
             std::string& nameRef = chars[(structs::AnimationClassHuman*)ch].first;
+
+            // Re-read name in case it changed (character creation rename)
+            const char* currentName = ch->getName();
+            if (currentName && utils::isValidName(currentName)) {
+                std::string curStr(currentName);
+                if (curStr != nameRef) {
+                    // Name changed — update all maps
+                    charsByName.erase(nameRef);
+                    charLastSeen.erase(nameRef);
+                    std::string oldFac;
+                    auto facIt = charFactions.find(nameRef);
+                    if (facIt != charFactions.end()) {
+                        oldFac = facIt->second;
+                        charFactions.erase(facIt);
+                    }
+                    nameRef = curStr;
+                    charsByName[curStr] = num;
+                    charLastSeen[curStr] = GetTickCount64();
+                    if (!oldFac.empty())
+                        charFactions[curStr] = oldFac;
+                    return;
+                }
+            }
+
             charsByName[nameRef] = num;
             charLastSeen[nameRef] = GetTickCount64();
         }

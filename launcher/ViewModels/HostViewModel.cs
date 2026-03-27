@@ -193,11 +193,11 @@ public partial class HostViewModel : ObservableObject
             existing.SteamId = sp.SteamId;
             existing.IsHost = sp.IsHost;
             existing.SquadCount = sp.Squad.Count;
+            existing.Faction = sp.Faction;
 
             if (sp.Squad.Count > 0)
             {
                 var leader = sp.Squad[0];
-                existing.Faction = leader.Faction;
                 existing.Position = $"{leader.X:F0}, {leader.Y:F0}, {leader.Z:F0}";
             }
 
@@ -209,7 +209,7 @@ public partial class HostViewModel : ObservableObject
                 {
                     Name = c.Name,
                     Position = $"{c.X:F1}, {c.Y:F1}, {c.Z:F1}",
-                    Faction = c.Faction
+                    Faction = sp.Faction
                 });
             }
         }
@@ -272,9 +272,10 @@ public partial class HostViewModel : ObservableObject
                     FirstSeen = cp.ConnectedAt.ToUniversalTime(),
                     LastSeen = DateTime.UtcNow,
                     IsOnline = true,
+                    Faction = cp.Faction,
                     Squad = cp.Squad.Select(c => new CharacterSnapshot
                     {
-                        Name = c.Name, X = c.X, Y = c.Y, Z = c.Z, Faction = c.Faction
+                        Name = c.Name, X = c.X, Y = c.Y, Z = c.Z, Faction = cp.Faction
                     }).ToList()
                 });
             }
@@ -283,9 +284,10 @@ public partial class HostViewModel : ObservableObject
                 var existing = _activeSaveData.Players.First(p => p.SlotId == cp.Id);
                 if (!string.IsNullOrEmpty(cp.SteamName)) existing.Name = cp.SteamName;
                 if (!string.IsNullOrEmpty(cp.SteamId)) existing.SteamId = cp.SteamId;
+                if (!string.IsNullOrEmpty(cp.Faction)) existing.Faction = cp.Faction;
                 existing.Squad = cp.Squad.Select(c => new CharacterSnapshot
                 {
-                    Name = c.Name, X = c.X, Y = c.Y, Z = c.Z, Faction = c.Faction
+                    Name = c.Name, X = c.X, Y = c.Y, Z = c.Z, Faction = cp.Faction
                 }).ToList();
             }
         }

@@ -23,7 +23,9 @@ public class ConnectedPlayer
     public string IP { get; set; } = "";
     public bool IsHost { get; set; }
     public DateTime ConnectedAt { get; set; }
+    public string Faction { get; set; } = "";
     public List<CharacterState> Squad { get; set; } = new();
+    public DateTime LastMessageTime { get; set; } = DateTime.UtcNow;
 }
 
 public class CharacterState
@@ -39,9 +41,6 @@ public class CharacterState
 
     [JsonPropertyName("z")]
     public float Z { get; set; }
-
-    [JsonPropertyName("fn")]
-    public string Faction { get; set; } = "";
 }
 
 public class BuildingState
@@ -68,14 +67,15 @@ public class RelayServer
     private CancellationTokenSource? _cts;
     private readonly List<TcpClient> _tcpClients = new();
     private readonly Dictionary<int, TcpClient> _tcpMap = new();
+    private readonly Dictionary<int, NetworkStream> _streamMap = new();
     private readonly object _lock = new();
     private int _nextId = 1;
 
     // World state (server-authoritative)
     private readonly Dictionary<int, ConnectedPlayer> _players = new();
-    private List<CharacterState> _hostNpcs = new();
     private List<BuildingState> _hostBuildings = new();
     private float _speed = 1.0f;
+    private float? _speedOverride = null; // set by /speed command, overrides client-reported speed
     private int _hostId = -1;
 
     private static readonly JsonSerializerOptions _jsonOpts = new()
@@ -109,7 +109,6 @@ public class RelayServer
         lock (_lock)
         {
             _players.Clear();
-            _hostNpcs.Clear();
             _hostBuildings.Clear();
         }
 
@@ -141,7 +140,7 @@ public class RelayServer
                     SteamId = kvp.Value.SteamId,
                     Squad = kvp.Value.Squad.Select(c => new CharacterSnapshot
                     {
-                        Name = c.Name, X = c.X, Y = c.Y, Z = c.Z, Faction = c.Faction
+                        Name = c.Name, X = c.X, Y = c.Y, Z = c.Z, Faction = kvp.Value.Faction
                     }).ToList()
                 });
             }
@@ -172,8 +171,8 @@ public class RelayServer
             }
             _tcpClients.Clear();
             _tcpMap.Clear();
+            _streamMap.Clear();
             _players.Clear();
-            _hostNpcs.Clear();
             _hostBuildings.Clear();
             _hostId = -1;
         }
@@ -198,6 +197,9 @@ public class RelayServer
             return;
         }
 
+        // Start heartbeat monitor
+        _ = Task.Run(() => HeartbeatLoop(ct), ct);
+
         try
         {
             while (!ct.IsCancellationRequested)
@@ -216,6 +218,55 @@ public class RelayServer
         finally
         {
             IsRunning = false;
+        }
+    }
+
+    private async Task HeartbeatLoop(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            await Task.Delay(10000, ct).ConfigureAwait(false);
+
+            List<(int id, NetworkStream stream)> toCheck;
+            lock (_lock)
+            {
+                toCheck = _players
+                    .Where(kvp => _streamMap.ContainsKey(kvp.Key))
+                    .Select(kvp => (kvp.Key, _streamMap[kvp.Key]))
+                    .ToList();
+            }
+
+            var now = DateTime.UtcNow;
+            foreach (var (id, stream) in toCheck)
+            {
+                DateTime lastMsg;
+                lock (_lock)
+                {
+                    if (!_players.TryGetValue(id, out var p)) continue;
+                    lastMsg = p.LastMessageTime;
+                }
+
+                // If no message for 45s, disconnect
+                if ((now - lastMsg).TotalSeconds >= 45)
+                {
+                    PostLog($"[{id}] Heartbeat timeout, disconnecting.");
+                    TcpClient? client;
+                    lock (_lock) { _tcpMap.TryGetValue(id, out client); }
+                    if (client != null)
+                        try { client.Close(); } catch { }
+                    continue;
+                }
+
+                // If no message for 30s, send ping
+                if ((now - lastMsg).TotalSeconds >= 30)
+                {
+                    try
+                    {
+                        await SendJson(stream, new Dictionary<string, object> { ["t"] = "ping" }, ct);
+                    }
+                    catch { }
+                }
+            }
         }
     }
 
@@ -263,6 +314,7 @@ public class RelayServer
 
                 _tcpClients.Add(client);
                 _tcpMap[clientId] = client;
+                _streamMap[clientId] = stream;
 
                 var player = new ConnectedPlayer
                 {
@@ -271,7 +323,8 @@ public class RelayServer
                     SteamId = steamId,
                     IP = clientIP,
                     IsHost = isHost,
-                    ConnectedAt = DateTime.Now
+                    ConnectedAt = DateTime.Now,
+                    LastMessageTime = DateTime.UtcNow
                 };
                 _players[clientId] = player;
 
@@ -300,70 +353,66 @@ public class RelayServer
                 var type = msg.Value.GetProperty("t").GetString();
                 msgCount++;
 
+                // Update last message time
+                lock (_lock)
+                {
+                    if (_players.TryGetValue(clientId, out var pl))
+                        pl.LastMessageTime = DateTime.UtcNow;
+                }
+
                 if (type == "ps")
                 {
-                    // Player state update
-                    int squadCount = 0;
+                    // Merged player state: chars + buildings + speed + faction
+                    int charCount = 0;
                     lock (_lock)
                     {
                         if (_players.TryGetValue(clientId, out var p))
                         {
-                            if (msg.Value.TryGetProperty("speed", out var sp))
+                            // Speed — only accept from client if no server override
+                            if (_speedOverride == null && msg.Value.TryGetProperty("speed", out var sp))
                             {
                                 if (sp.TryGetSingle(out var spVal))
                                     _speed = spVal;
                             }
 
-                            if (msg.Value.TryGetProperty("squad", out var sq))
+                            // Player faction
+                            if (msg.Value.TryGetProperty("pf", out var pf))
+                                p.Faction = pf.GetString() ?? "";
+
+                            // Characters (all visible chars from this client)
+                            if (msg.Value.TryGetProperty("chars", out var ch))
                             {
-                                p.Squad = JsonSerializer.Deserialize<List<CharacterState>>(sq.GetRawText(), _jsonOpts)
+                                p.Squad = JsonSerializer.Deserialize<List<CharacterState>>(ch.GetRawText(), _jsonOpts)
                                           ?? new List<CharacterState>();
-                                squadCount = p.Squad.Count;
-                            }
-                        }
-                    }
-
-                    // Log first ps and then periodically
-                    if (msgCount == 1)
-                        PostLog($"[{clientId}] First ps: {squadCount} squad, speed={_speed:F1}");
-                }
-                else if (type == "ws")
-                {
-                    // World state from host only
-                    int npcCount = 0, bldCount = 0;
-                    lock (_lock)
-                    {
-                        if (clientId == _hostId)
-                        {
-                            if (msg.Value.TryGetProperty("npcs", out var npcs))
-                            {
-                                _hostNpcs = JsonSerializer.Deserialize<List<CharacterState>>(npcs.GetRawText(), _jsonOpts)
-                                            ?? new List<CharacterState>();
-                                npcCount = _hostNpcs.Count;
+                                charCount = p.Squad.Count;
                             }
 
-                            if (msg.Value.TryGetProperty("buildings", out var blds))
+                            // Buildings (accepted from all clients, but only host's are authoritative)
+                            if (clientId == _hostId && msg.Value.TryGetProperty("buildings", out var bl))
                             {
-                                _hostBuildings = JsonSerializer.Deserialize<List<BuildingState>>(blds.GetRawText(), _jsonOpts)
+                                _hostBuildings = JsonSerializer.Deserialize<List<BuildingState>>(bl.GetRawText(), _jsonOpts)
                                                  ?? new List<BuildingState>();
-                                bldCount = _hostBuildings.Count;
                             }
                         }
                     }
 
-                    // Log first ws and then periodically
-                    if (msgCount <= 2)
-                        PostLog($"[{clientId}] First ws: {npcCount} npcs, {bldCount} buildings");
+                    // Log first message and then periodically
+                    if (msgCount == 1)
+                        PostLog($"[{clientId}] First ps: {charCount} chars, speed={_speed:F1}");
+                }
+                else if (type == "pong")
+                {
+                    // Heartbeat response — LastMessageTime already updated above
                 }
 
-                // Periodic status log (every 30s)
-                if ((DateTime.UtcNow - lastStatusLog).TotalSeconds >= 30)
+                // Periodic status log (every 10s)
+                if ((DateTime.UtcNow - lastStatusLog).TotalSeconds >= 10)
                 {
                     lastStatusLog = DateTime.UtcNow;
                     lock (_lock)
                     {
                         if (_players.TryGetValue(clientId, out var sp))
-                            PostLog($"[{clientId}] Relay: {msgCount} msgs, {sp.Squad.Count} squad, {_hostNpcs.Count} npcs, speed={_speed:F1}");
+                            PostLog($"[{clientId}] Relay: {msgCount} msgs, {sp.Squad.Count} chars, {_hostBuildings.Count} buildings, speed={_speed:F1}");
                     }
                 }
 
@@ -377,12 +426,17 @@ public class RelayServer
         finally
         {
             string disconnectedName;
+            bool wasHost = false;
+            int newHostId = -1;
+            NetworkStream? newHostStream = null;
+
             lock (_lock)
             {
                 _tcpClients.Remove(client);
                 if (clientId > 0)
                 {
                     _tcpMap.Remove(clientId);
+                    _streamMap.Remove(clientId);
                     _players.TryGetValue(clientId, out var removedPlayer);
                     disconnectedName = removedPlayer?.SteamName ?? $"#{clientId}";
                     _players.Remove(clientId);
@@ -390,12 +444,15 @@ public class RelayServer
                     // If host disconnected, reassign
                     if (clientId == _hostId)
                     {
+                        wasHost = true;
                         _hostId = -1;
                         if (_players.Count > 0)
                         {
                             var newHost = _players.Values.First();
                             _hostId = newHost.Id;
                             newHost.IsHost = true;
+                            newHostId = newHost.Id;
+                            _streamMap.TryGetValue(newHostId, out newHostStream);
                             PostLog($"Host reassigned to player {newHost.Id} '{newHost.SteamName}'.");
                         }
                     }
@@ -404,6 +461,22 @@ public class RelayServer
                 {
                     disconnectedName = "unknown";
                 }
+            }
+
+            // Send host change notification outside the lock
+            if (wasHost && newHostId > 0 && newHostStream != null)
+            {
+                try
+                {
+                    var hostChange = new Dictionary<string, object>
+                    {
+                        ["t"] = "hostChange",
+                        ["isHost"] = true
+                    };
+                    await SendJson(newHostStream, hostChange, CancellationToken.None);
+                    PostLog($"[{newHostId}] Notified of host promotion.");
+                }
+                catch { }
             }
 
             try { client.Close(); } catch { }
@@ -435,16 +508,16 @@ public class RelayServer
                     ["sn"] = p.SteamName,
                     ["sid"] = p.SteamId,
                     ["host"] = p.IsHost,
-                    ["squad"] = p.Squad
+                    ["pf"] = p.Faction,
+                    ["chars"] = p.Squad
                 });
             }
 
             var wu = new Dictionary<string, object>
             {
                 ["t"] = "wu",
-                ["speed"] = _speed,
+                ["speed"] = _speedOverride ?? _speed,
                 ["players"] = playerList,
-                ["npcs"] = _hostNpcs,
                 ["buildings"] = _hostBuildings
             };
 
@@ -523,13 +596,19 @@ public class RelayServer
         switch (cmd)
         {
             case "/speed":
-                if (float.TryParse(arg, NumberStyles.Float, CultureInfo.InvariantCulture, out var s) && s > 0)
+                if (string.IsNullOrEmpty(arg) || arg == "reset")
                 {
+                    _speedOverride = null;
+                    PostLog("Speed override cleared — using client speed.");
+                }
+                else if (float.TryParse(arg, NumberStyles.Float, CultureInfo.InvariantCulture, out var s) && s > 0)
+                {
+                    _speedOverride = s;
                     _speed = s;
-                    PostLog($"Speed set to {s}.");
+                    PostLog($"Speed override set to {s}. Use '/speed reset' to clear.");
                 }
                 else
-                    PostLog("Usage: /speed <value>");
+                    PostLog("Usage: /speed <value> | /speed reset");
                 break;
 
             case "/kick":
@@ -564,11 +643,23 @@ public class RelayServer
                     }
                     else
                     {
+                        PostLog($"{_players.Count} player(s), speed={_speed:F1}, {_hostBuildings.Count} buildings:");
                         foreach (var p in _players.Values)
                         {
                             var hostTag = p.IsHost ? " [HOST]" : "";
-                            var squadCount = p.Squad.Count;
-                            PostLog($"  #{p.Id} '{p.SteamName}' ({p.SteamId}) - {squadCount} squad members{hostTag}");
+                            var factionTag = string.IsNullOrEmpty(p.Faction) ? "" : p.Faction;
+                            var uptime = (DateTime.Now - p.ConnectedAt);
+                            var uptimeStr = uptime.TotalMinutes < 1 ? $"{uptime.Seconds}s" : $"{uptime.TotalMinutes:F0}m";
+                            PostLog($"  #{p.Id} '{p.SteamName}' ({p.SteamId}){hostTag}");
+                            PostLog($"     Faction: {(string.IsNullOrEmpty(factionTag) ? "unknown" : factionTag)} | Chars: {p.Squad.Count} | Up: {uptimeStr}");
+                            if (p.Squad.Count > 0)
+                            {
+                                var leader = p.Squad[0];
+                                PostLog($"     Pos: ({leader.X:F0}, {leader.Y:F0}, {leader.Z:F0})");
+                                var names = string.Join(", ", p.Squad.Select(c => c.Name).Take(10));
+                                if (p.Squad.Count > 10) names += $" +{p.Squad.Count - 10} more";
+                                PostLog($"     Squad: {names}");
+                            }
                         }
                     }
                 }
@@ -577,6 +668,7 @@ public class RelayServer
             case "/host":
                 if (int.TryParse(arg, out var newHostId))
                 {
+                    NetworkStream? newHostStream = null;
                     lock (_lock)
                     {
                         if (_players.TryGetValue(newHostId, out var newHost))
@@ -586,10 +678,26 @@ public class RelayServer
                                 p.IsHost = false;
                             newHost.IsHost = true;
                             _hostId = newHostId;
+                            _streamMap.TryGetValue(newHostId, out newHostStream);
                             PostLog($"Host reassigned to player {newHostId} '{newHost.SteamName}'.");
                         }
                         else
                             PostLog($"Player {newHostId} not found.");
+                    }
+
+                    // Notify new host outside lock
+                    if (newHostStream != null)
+                    {
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await SendJson(newHostStream,
+                                    new Dictionary<string, object> { ["t"] = "hostChange", ["isHost"] = true },
+                                    CancellationToken.None);
+                            }
+                            catch { }
+                        });
                     }
                 }
                 else

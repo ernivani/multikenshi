@@ -167,18 +167,30 @@
       <Border Grid.Row="2" Background="#262626" />
 
       <!-- Log panel -->
-      <ScrollViewer Grid.Row="3" Name="LogScroller"
-                    VerticalScrollBarVisibility="Auto"
-                    Padding="0">
-        <ItemsControl Name="LogItems" ItemsSource="{Binding ServerLog}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate>
-              <TextBlock Text="{Binding}" FontSize="11" FontFamily="Consolas,Courier New,monospace"
-                         Foreground="#6b6b6b" Padding="16,2" TextWrapping="Wrap" />
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </ScrollViewer>
+      <DockPanel Grid.Row="3">
+        <Border DockPanel.Dock="Top" Padding="16,4" Background="#141414"
+                BorderBrush="#262626" BorderThickness="0,0,0,1">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0" Text="Log" FontSize="10" Foreground="#3a3a3a"
+                       VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="ghost" Height="20" Padding="8,0" FontSize="10"
+                    Content="Copy" Foreground="#3a3a3a" VerticalContentAlignment="Center"
+                    Click="CopyLog_Click" />
+          </Grid>
+        </Border>
+        <ScrollViewer Name="LogScroller"
+                      VerticalScrollBarVisibility="Auto"
+                      Padding="0">
+          <ItemsControl Name="LogItems" ItemsSource="{Binding ServerLog}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" FontSize="11" FontFamily="Consolas,Courier New,monospace"
+                           Foreground="#6b6b6b" Padding="16,2" TextWrapping="Wrap" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
 
       <!-- Command bar -->
       <Border Grid.Row="4" Background="#1a1a1a" BorderBrush="#262626" BorderThickness="0,1,0,0"

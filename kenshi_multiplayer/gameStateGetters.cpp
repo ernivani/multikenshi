@@ -23,20 +23,6 @@ namespace gameState {
         }
     }
 
-    // SEH-safe faction name reader
-    __declspec(nothrow) static const char* safeGetFactionName(structs::AnimationClassHuman* anim) {
-        __try {
-            structs::CharacterHuman* ch = anim->character;
-            if (!ch) return "";
-            structs::Faction* fac = ch->faction;
-            if (!fac) return "";
-            return fac->getName();
-        }
-        __except (EXCEPTION_EXECUTE_HANDLER) {
-            return "";
-        }
-    }
-
     // SEH-safe position reader
     __declspec(nothrow) static bool safeGetPosition(structs::AnimationClassHuman* anim, float& ox, float& oy, float& oz) {
         __try {
@@ -49,6 +35,92 @@ namespace gameState {
         __except (EXCEPTION_EXECUTE_HANDLER) {
             return false;
         }
+    }
+
+    // ---------- SEH-safe map snapshot helpers ----------
+    // These are plain-C style functions (no C++ objects needing unwinding)
+    // that walk the live maps inside __try/__except. If the game thread
+    // corrupts the tree mid-walk, SEH catches the fault and we return
+    // whatever we collected so far.
+
+    struct CharEntry {
+        const char* name;  // points into live map (read-only, brief use)
+        const char* faction; // from charFactions map (null if unknown)
+        structs::AnimationClassHuman* anim;
+        long long lastSeen;
+    };
+
+    static const int MAX_CHAR_ENTRIES = 512;
+    static const int MAX_BUILD_ENTRIES = 256;
+
+    // Walk charsByName + charLastSeen + charFactions under SEH, collect into flat array.
+    // If filterFaction is non-null, only include characters matching that faction.
+    __declspec(nothrow) static int safeCollectChars(
+        std::map<std::string, structs::AnimationClassHuman*>* mapPtr,
+        std::map<std::string, long long>* lastSeenPtr,
+        std::map<std::string, std::string>* factionPtr,
+        const char* filterFaction, int filterLen,
+        CharEntry* out, int maxOut)
+    {
+        int count = 0;
+        __try {
+            for (auto it = mapPtr->begin(); it != mapPtr->end() && count < maxOut; ++it) {
+                // Filter by faction if requested
+                if (filterFaction && filterLen > 0) {
+                    auto facIt = factionPtr->find(it->first);
+                    if (facIt == factionPtr->end()) continue;
+                    if (facIt->second.size() != (size_t)filterLen ||
+                        memcmp(facIt->second.c_str(), filterFaction, filterLen) != 0)
+                        continue;
+                }
+
+                CharEntry e;
+                e.name = it->first.c_str();
+                e.faction = nullptr;
+                e.anim = it->second;
+                e.lastSeen = 0;
+
+                auto facIt2 = factionPtr->find(it->first);
+                if (facIt2 != factionPtr->end())
+                    e.faction = facIt2->second.c_str();
+
+                auto ts = lastSeenPtr->find(it->first);
+                if (ts != lastSeenPtr->end())
+                    e.lastSeen = ts->second;
+                out[count++] = e;
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            // Tree walk faulted — return what we have so far
+        }
+        return count;
+    }
+
+    struct BuildEntry {
+        const char* name;
+        structs::Building* bld;
+        long long lastSeen;
+    };
+
+    // Walk builds under SEH, collect into flat array.
+    __declspec(nothrow) static int safeCollectBuilds(
+        std::map<structs::Building*, std::pair<std::string, long long>>* mapPtr,
+        BuildEntry* out, int maxOut)
+    {
+        int count = 0;
+        __try {
+            for (auto it = mapPtr->begin(); it != mapPtr->end() && count < maxOut; ++it) {
+                BuildEntry e;
+                e.name = it->second.first.c_str();
+                e.bld = it->first;
+                e.lastSeen = it->second.second;
+                out[count++] = e;
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            // Tree walk faulted — return what we have so far
+        }
+        return count;
     }
 
     // ---------- Legacy getters (kept for backward compat) ----------
@@ -119,94 +191,61 @@ namespace gameState {
         return playerFactionName;
     }
 
-    // Get our squad characters as JSON array
-    // "Our" = characters whose faction matches our player's faction
-    // Uses charsByName which has correct AnimationClassHuman* pointers
+    // Get player's squad characters as JSON array
+    // Filters by player faction using charFactions map (populated on game thread)
     json getSquadJson() {
         json arr = json::array();
         if (!player) return arr;
 
-        std::string ourFaction = getPlayerFaction();
-        // Fallback: try to read faction live if it wasn't captured at detection
-        if (ourFaction.empty()) {
-            ourFaction = std::string(safeGetFactionName(player));
-            if (!ourFaction.empty()) {
-                playerFactionName = ourFaction;
-                std::cout << utils::ts() << "Player faction detected (late): " << ourFaction << std::endl;
-            }
-        }
-        if (ourFaction.empty()) return arr;
+        // Filter by player faction if known
+        std::string ourFaction = playerFactionName;
+        const char* filterFac = ourFaction.empty() ? nullptr : ourFaction.c_str();
+        int filterLen = (int)ourFaction.size();
+
+        CharEntry entries[MAX_CHAR_ENTRIES];
+        int count = safeCollectChars(&charsByName, &charLastSeen, &charFactions,
+                                     filterFac, filterLen, entries, MAX_CHAR_ENTRIES);
 
         long long now = GetTickCount64();
-        for (auto it = charsByName.begin(); it != charsByName.end(); ++it) {
+        for (int i = 0; i < count; ++i) {
             // Skip stale characters (not seen in 10s)
-            auto ts = charLastSeen.find(it->first);
-            if (ts != charLastSeen.end() && now - ts->second > 10000) continue;
-
-            structs::AnimationClassHuman* anim = it->second;
-            std::string facName(safeGetFactionName(anim));
-            if (facName != ourFaction) continue;
+            if (entries[i].lastSeen > 0 && now - entries[i].lastSeen > 10000) continue;
 
             float x, y, z;
-            if (!safeGetPosition(anim, x, y, z)) continue;
+            if (!safeGetPosition(entries[i].anim, x, y, z)) continue;
             if (x == 0.0f && y == 0.0f && z == 0.0f) continue;
 
             json ch;
-            ch["n"] = it->first;
+            ch["n"] = std::string(entries[i].name);
             ch["x"] = x;
             ch["y"] = y;
             ch["z"] = z;
-            ch["fn"] = facName;
             arr.push_back(ch);
         }
         return arr;
     }
 
-    // Get NPC characters (not our faction) as JSON array
-    // Uses charsByName which has correct AnimationClassHuman* pointers
+    // NPC collection no longer needed — all chars go through getSquadJson
     json getNpcJson() {
-        json arr = json::array();
-        if (!player) return arr;
-
-        std::string ourFaction = getPlayerFaction();
-
-        long long now = GetTickCount64();
-        for (auto it = charsByName.begin(); it != charsByName.end(); ++it) {
-            auto ts = charLastSeen.find(it->first);
-            if (ts != charLastSeen.end() && now - ts->second > 10000) continue;
-
-            structs::AnimationClassHuman* anim = it->second;
-            std::string facName(safeGetFactionName(anim));
-            // Skip our own faction — those go in squad
-            if (!ourFaction.empty() && facName == ourFaction) continue;
-
-            float x, y, z;
-            if (!safeGetPosition(anim, x, y, z)) continue;
-            if (x == 0.0f && y == 0.0f && z == 0.0f) continue;
-
-            json ch;
-            ch["n"] = it->first;
-            ch["x"] = x;
-            ch["y"] = y;
-            ch["z"] = z;
-            ch["fn"] = facName;
-            arr.push_back(ch);
-        }
-        return arr;
+        return json::array();
     }
 
     // Get buildings as JSON array
     json getBuildingJson() {
         json arr = json::array();
 
-        long long now = GetTickCount64();
-        for (auto it = builds.begin(); it != builds.end(); ++it) {
-            if (now - it->second.second > 30000) continue;
+        // Collect raw entries from live map under SEH protection
+        BuildEntry entries[MAX_BUILD_ENTRIES];
+        int count = safeCollectBuilds(&builds, entries, MAX_BUILD_ENTRIES);
 
-            structs::Building* bld = it->first;
+        long long now = GetTickCount64();
+        for (int i = 0; i < count; ++i) {
+            if (now - entries[i].lastSeen > 30000) continue;
+
+            structs::Building* bld = entries[i].bld;
 
             json b;
-            b["n"] = it->second.first;
+            b["n"] = std::string(entries[i].name);
             b["x"] = bld->x;
             b["y"] = bld->y;
             b["z"] = bld->z;

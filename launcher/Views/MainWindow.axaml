@@ -190,7 +190,7 @@
               </StackPanel>
               <StackPanel Grid.Column="2">
                 <TextBlock Text="Port" FontSize="11" Foreground="#6b6b6b" Margin="0,0,0,5" />
-                <TextBox Text="{Binding Play.JoinPort}" Watermark="7777"
+                <TextBox Text="{Binding Play.JoinPort}" Watermark="8080"
                          Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
               </StackPanel>
             </Grid>
@@ -296,7 +296,7 @@
             <Grid ColumnDefinitions="*,8,80">
               <StackPanel Grid.Column="0">
                 <TextBlock Text="Port" FontSize="11" Foreground="#6b6b6b" Margin="0,0,0,5" />
-                <TextBox Text="{Binding Play.HostPort}" Watermark="7777"
+                <TextBox Text="{Binding Play.HostPort}" Watermark="8080"
                          Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
               </StackPanel>
               <StackPanel Grid.Column="2">

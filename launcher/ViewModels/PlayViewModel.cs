@@ -227,6 +227,11 @@ public partial class PlayViewModel : ObservableObject
                 var (sName, sId) = SteamIdentity.GetCurrentUser();
                 GameConfigWriter.Write(_config.KenshiPath, JoinIP, JoinPort, sName, sId);
 
+                // Mod auto-install disabled — using vanilla starts for now
+                // var (modUpdated, modMsg) = GameConfigWriter.EnsureMod(_config.KenshiPath);
+                // if (modUpdated)
+                //     _main.PostLog($"Mod: {modMsg}");
+
                 var process = ProcessLauncher.FindKenshiProcess();
                 int pid;
 
@@ -416,7 +421,7 @@ public partial class PlayViewModel : ObservableObject
         {
             // Create new save
             var name = $"Session {DateTime.Now:yyyy-MM-dd HH.mm}";
-            int port = int.TryParse(HostPort, out var p) ? p : 7777;
+            int port = int.TryParse(HostPort, out var p) ? p : 8080;
             int max = int.TryParse(HostMaxPlayers, out var m) ? m : 8;
             folderName = _saveManager.CreateSave(name, port, max, HostPassword);
         }

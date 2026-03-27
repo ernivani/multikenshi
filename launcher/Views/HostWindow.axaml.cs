@@ -84,6 +84,15 @@ public partial class HostWindow : Window
         }
     }
 
+    private async void CopyLog_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is HostViewModel vm && Clipboard is { } clipboard)
+        {
+            var text = string.Join("\n", vm.ServerLog);
+            await clipboard.SetTextAsync(text);
+        }
+    }
+
     private void CommandInput_KeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter && DataContext is HostViewModel vm)
