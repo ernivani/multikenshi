@@ -26,7 +26,7 @@ namespace gameState {
         setupHooks();
         // Old tracked variables no longer used — JSON protocol handles everything
         // Kept as empty vector for backward compatibility with getData/setData
-        std::cout << "Hooks + JSON protocol ready." << std::endl;
+        std::cout << utils::ts() << "Hooks + JSON protocol ready." << std::endl;
     }
     void setData(const std::string& data) {
         std::string line;
@@ -98,7 +98,7 @@ namespace gameState {
                     const char* facName = fac->getName();
                     if (facName && utils::isValidName(facName)) {
                         playerFactionName = facName;
-                        std::cout << "Player detected: " << nameStr
+                        std::cout << utils::ts() << "Player detected: " << nameStr
                                   << " (faction: " << playerFactionName << ")" << std::endl;
                     }
                 }
@@ -204,7 +204,7 @@ namespace gameState {
                 {0x5A}//pop rdx
             );
         } else {
-            std::cout << "SKIP: spawnSquadBypass hook (squad spawning not available)\n";
+            std::cout << utils::ts() << "SKIP: spawnSquadBypass hook (squad spawning not available)\n";
         }
         if (offsets::spawnSquadFuncCall != 0) {
             utils::createHook(
@@ -240,7 +240,7 @@ namespace gameState {
                 }
             );
         } else {
-            std::cout << "SKIP: spawnSquadFuncCall hook (offset not resolved)\n";
+            std::cout << utils::ts() << "SKIP: spawnSquadFuncCall hook (offset not resolved)\n";
         }
     }
     std::map<std::string,structs::GameData*> DB;
@@ -249,7 +249,7 @@ namespace gameState {
         std::vector<uintptr_t> result;
 
         crashlog::phase("heap_scan: scanning for GameDataManagerMain");
-        std::cout << "  GameDataManagerMain target: 0x" << std::hex
+        std::cout << utils::ts() << "  GameDataManagerMain target: 0x" << std::hex
                   << (moduleBase + offsets::GameDataManagerMain) << std::dec << std::endl;
 
         int scanPass = 0;
@@ -260,10 +260,10 @@ namespace gameState {
             result = std::move(utils::scanMemoryForValue(gameState::moduleBase + offsets::GameDataManagerMain));
             scanPass++;
             if (scanPass <= 5 || scanPass % 10 == 0) {
-                std::cout << "  Scan pass " << scanPass << ": " << result.size() << " results" << std::endl;
+                std::cout << utils::ts() << "  Scan pass " << scanPass << ": " << result.size() << " results" << std::endl;
             }
         }
-        std::cout << "  Scan complete: " << result.size() << " results in " << scanPass << " passes." << std::endl;
+        std::cout << utils::ts() << "  Scan complete: " << result.size() << " results in " << scanPass << " passes." << std::endl;
 
         crashlog::phase("heap_scan: building DB");
         gameLoaded = true;
@@ -272,6 +272,6 @@ namespace gameState {
             auto name = data->getName();
             if(utils::isValidName(name))DB[name] = data;
         }
-        std::cout << "HeapScan: found " << DB.size() << " entries in " << ((GetTickCount64() - startTime) / 1000.) << "s.\n";
+        std::cout << utils::ts() << "HeapScan: found " << DB.size() << " entries in " << ((GetTickCount64() - startTime) / 1000.) << "s.\n";
     }
 }

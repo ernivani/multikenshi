@@ -2,6 +2,7 @@
 #include "gameState.h"
 #include "offsets.h"
 #include "json.hpp"
+#include "utils.h"
 #include <string>
 #include <map>
 
@@ -131,7 +132,7 @@ namespace gameState {
             ourFaction = std::string(safeGetFactionName(player));
             if (!ourFaction.empty()) {
                 playerFactionName = ourFaction;
-                std::cout << "Player faction detected (late): " << ourFaction << std::endl;
+                std::cout << utils::ts() << "Player faction detected (late): " << ourFaction << std::endl;
             }
         }
         if (ourFaction.empty()) return arr;

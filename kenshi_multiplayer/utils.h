@@ -2,6 +2,8 @@
 #include<string>
 #include <vector>
 namespace utils {
+    // Returns "[HH:MM:SS] " timestamp prefix for log messages
+    std::string ts();
     void spawn_console();
     std::vector<std::string> split(const std::string& str, const std::string& delim);
     bool isValidName(const char* name);

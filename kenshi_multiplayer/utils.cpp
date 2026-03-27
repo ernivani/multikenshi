@@ -11,6 +11,13 @@
 #include <thread>
 
 namespace utils {
+    std::string ts() {
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+        char buf[16];
+        sprintf_s(buf, "[%02d:%02d:%02d] ", st.wHour, st.wMinute, st.wSecond);
+        return std::string(buf);
+    }
     void spawn_console() {
         guiConsole::create();
     }

@@ -23,8 +23,8 @@ void dllmain() {
     // 1. Create GUI console (redirects cout/cerr)
     guiConsole::create();
 
-    std::cout << "=== Kenshi Multiplayer Mod ===" << std::endl;
-    std::cout << "Scanning for offsets..." << std::endl;
+    std::cout << utils::ts() << "=== Kenshi Multiplayer Mod ===" << std::endl;
+    std::cout << utils::ts() << "Scanning for offsets..." << std::endl;
 
     // 2. Resolve offsets via pattern scanning
     crashlog::phase("pattern_scan");
@@ -46,7 +46,7 @@ void dllmain() {
                 && offsets::spawnSquadBypass != 0;
 
     if (!hooksOk) {
-        std::cerr << "ERROR: Failed to resolve hook offsets! Mod cannot function." << std::endl;
+        std::cerr << utils::ts() << "ERROR: Failed to resolve hook offsets! Mod cannot function." << std::endl;
         guiConsole::setStatus("ERROR: Pattern scan failed");
         crashlog::phase("ABORT: pattern_scan_failed");
         return;
@@ -54,16 +54,16 @@ void dllmain() {
 
     bool needRuntimeDiscovery = (offsets::GameDataManagerMain == 0);
     if (needRuntimeDiscovery) {
-        std::cout << "GameDataManagerMain not found by pattern scan." << std::endl;
-        std::cout << "Will discover at runtime after game loads." << std::endl;
+        std::cout << utils::ts() << "GameDataManagerMain not found by pattern scan." << std::endl;
+        std::cout << utils::ts() << "Will discover at runtime after game loads." << std::endl;
     } else {
-        std::cout << "All critical offsets resolved." << std::endl;
+        std::cout << utils::ts() << "All critical offsets resolved." << std::endl;
     }
 
     // 3. Initialize Winsock early (doesn't depend on game offsets)
     crashlog::phase("winsock_init");
     if (!network::initializeWinsock()) {
-        std::cerr << "WSAStartup failed!" << std::endl;
+        std::cerr << utils::ts() << "WSAStartup failed!" << std::endl;
         crashlog::phase("ABORT: winsock_failed");
         return;
     }
@@ -92,24 +92,24 @@ void dllmain() {
                                      steamId, sizeof(steamId), iniPath);
         }
     }
-    std::cout << "Config: " << serverIP << ":" << serverPort << std::endl;
-    std::cout << "Identity: " << steamName << " (" << steamId << ")" << std::endl;
+    std::cout << utils::ts() << "Config: " << serverIP << ":" << serverPort << std::endl;
+    std::cout << utils::ts() << "Identity: " << steamName << " (" << steamId << ")" << std::endl;
     network::steamName = steamName;
     network::steamId = steamId;
 
     // 5. Runtime discovery of GameDataManagerMain if pattern scan didn't find it
     if (needRuntimeDiscovery) {
         crashlog::phase("runtime_discovery");
-        std::cout << "Waiting for game to load (runtime discovery)..." << std::endl;
+        std::cout << utils::ts() << "Waiting for game to load (runtime discovery)..." << std::endl;
         guiConsole::setStatus("Waiting for game to load...");
 
         patternScan::SectionInfo data = patternScan::getDataSection();
         if (data.size == 0) {
-            std::cerr << "ERROR: Could not find .data section!" << std::endl;
+            std::cerr << utils::ts() << "ERROR: Could not find .data section!" << std::endl;
             crashlog::phase("ABORT: no_data_section");
             return;
         }
-        std::cout << ".data section: 0x" << std::hex << data.base
+        std::cout << utils::ts() << ".data section: 0x" << std::hex << data.base
                   << " size: 0x" << data.size << std::dec << std::endl;
 
         uintptr_t moduleBase = (uintptr_t)GetModuleHandle(NULL);
@@ -120,7 +120,7 @@ void dllmain() {
             crashlog::phase("runtime_discovery: frequency scan");
             auto result = utils::findMostReferencedGlobal(data.base, data.size);
 
-            std::cout << "  Discovery pass " << scanPass << ": best="
+            std::cout << utils::ts() << "  Discovery pass " << scanPass << ": best="
                       << result.hitCount << " hits at 0x" << std::hex
                       << result.address << std::dec << std::endl;
 
@@ -129,17 +129,17 @@ void dllmain() {
                 offsets::squadSpawningHand = offsets::GameDataManagerMain + 0x480;
                 offsets::gameWorldOffset = offsets::GameDataManagerMain - 0x20;
 
-                std::cout << "  Discovered GameDataManagerMain: 0x" << std::hex
+                std::cout << utils::ts() << "  Discovered GameDataManagerMain: 0x" << std::hex
                           << offsets::GameDataManagerMain << std::endl;
-                std::cout << "  Derived squadSpawningHand:      0x"
+                std::cout << utils::ts() << "  Derived squadSpawningHand:      0x"
                           << offsets::squadSpawningHand << std::endl;
-                std::cout << "  Derived gameWorldOffset:        0x"
+                std::cout << utils::ts() << "  Derived gameWorldOffset:        0x"
                           << offsets::gameWorldOffset << std::dec << std::endl;
                 break;
             }
 
             if (scanPass >= 120) { // 6 minutes max
-                std::cerr << "ERROR: Timed out waiting for game data." << std::endl;
+                std::cerr << utils::ts() << "ERROR: Timed out waiting for game data." << std::endl;
                 crashlog::phase("ABORT: discovery_timeout");
                 return;
             }
@@ -150,7 +150,7 @@ void dllmain() {
     crashlog::phase("init_game_world");
     gameState::initGameWorld();
     if (!gameState::gameWorld) {
-        std::cerr << "Failed to locate GameWorldClass in memory!" << std::endl;
+        std::cerr << utils::ts() << "Failed to locate GameWorldClass in memory!" << std::endl;
         guiConsole::setStatus("ERROR: GameWorld not found");
         crashlog::phase("ABORT: gameworld_null");
         return;
@@ -162,43 +162,43 @@ void dllmain() {
 
     // 8. Wait for game to load and scan heap
     crashlog::phase("heap_scan_wait");
-    std::cout << "Scanning heap..." << std::endl;
+    std::cout << utils::ts() << "Scanning heap..." << std::endl;
     guiConsole::setStatus("Scanning game data...");
     gameState::scanHeap();
-    std::cout << "Game loaded." << std::endl;
+    std::cout << utils::ts() << "Game loaded." << std::endl;
 
     // 9. Setup hooks and tracked variables
     crashlog::phase("setup_hooks");
     gameState::init();
-    std::cout << "Hooks installed." << std::endl;
+    std::cout << utils::ts() << "Hooks installed." << std::endl;
 
     // 10. Initialize commands
     crashlog::phase("commands_init");
     commands::init();
-    std::cout << "[Console Ready]" << std::endl;
+    std::cout << utils::ts() << "[Console Ready]" << std::endl;
     guiConsole::setStatus("Ready - not connected");
 
     // 11. Network connect with retry
     crashlog::phase("network_connect");
-    std::cout << "Connecting to " << serverIP << ":" << serverPort << "..." << std::endl;
+    std::cout << utils::ts() << "Connecting to " << serverIP << ":" << serverPort << "..." << std::endl;
     SOCKET client_fd = INVALID_SOCKET;
     for (int attempt = 1; attempt <= 5 && client_fd == INVALID_SOCKET; ++attempt) {
         client_fd = network::connectToServer(serverIP, serverPort);
         if (client_fd == INVALID_SOCKET) {
-            std::cout << "Connection attempt " << attempt << "/5 failed, retrying in 3s..." << std::endl;
+            std::cout << utils::ts() << "Connection attempt " << attempt << "/5 failed, retrying in 3s..." << std::endl;
             Sleep(3000);
         }
     }
 
     if (client_fd != INVALID_SOCKET) {
         crashlog::phase("connected");
-        std::cout << "Connected to server!" << std::endl;
+        std::cout << utils::ts() << "Connected to server!" << std::endl;
         guiConsole::setStatus(std::string("Connected to ") + serverIP + ":" + std::to_string(serverPort));
         std::thread(network::receiveMessages, client_fd).join();
         network::cleanup(client_fd);
         guiConsole::setStatus("Disconnected");
     } else {
-        std::cout << "Failed to connect to server after 5 attempts." << std::endl;
+        std::cout << utils::ts() << "Failed to connect to server after 5 attempts." << std::endl;
         guiConsole::setStatus("Disconnected - server not found");
     }
     crashlog::phase("shutdown");

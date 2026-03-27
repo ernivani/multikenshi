@@ -12,6 +12,7 @@
 
 #include "network.h"
 #include "json.hpp"
+#include "utils.h"
 
 using json = nlohmann::json;
 
@@ -30,7 +31,7 @@ namespace network {
     SOCKET connectToServer(const std::string& ip, int port) {
         SOCKET client_fd = socket(AF_INET, SOCK_STREAM, 0);
         if (client_fd == INVALID_SOCKET) {
-            std::cerr << "Socket creation failed!\n";
+            std::cerr << utils::ts() << "Socket creation failed!\n";
             return INVALID_SOCKET;
         }
 
@@ -40,7 +41,7 @@ namespace network {
         inet_pton(AF_INET, ip.c_str(), &server_addr.sin_addr);
 
         if (connect(client_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
-            std::cerr << "Connection failed!\n";
+            std::cerr << utils::ts() << "Connection failed!\n";
             closesocket(client_fd);
             return INVALID_SOCKET;
         }
@@ -74,7 +75,7 @@ namespace network {
         while (total < len) {
             int sent = send(client_fd, msg.c_str() + total, len - total, 0);
             if (sent == SOCKET_ERROR) {
-                std::cerr << "Failed to send message!\n";
+                std::cerr << utils::ts() << "Failed to send message!\n";
                 return;
             }
             total += sent;
@@ -93,30 +94,30 @@ namespace network {
             hello["steamId"] = steamId;
             hello["v"] = "0.3";
             sendLine(client_fd, hello.dump());
-            std::cout << "Handshake sent." << std::endl;
+            std::cout << utils::ts() << "Handshake sent." << std::endl;
         }
 
         // Step 2: Read welcome
         {
             if (!readLine(client_fd, buffer, line)) {
-                std::cerr << "Server disconnected during handshake!\n";
+                std::cerr << utils::ts() << "Server disconnected during handshake!\n";
                 running = false;
                 return;
             }
             try {
                 json welcome = json::parse(line);
                 if (welcome.value("t", "") != "welcome") {
-                    std::cerr << "Expected welcome, got: " << line << "\n";
+                    std::cerr << utils::ts() << "Expected welcome, got: " << line << "\n";
                     running = false;
                     return;
                 }
                 playerId = welcome.value("id", -1);
                 isHost = welcome.value("isHost", false);
-                std::cout << "Welcome! Player ID: " << playerId
+                std::cout << utils::ts() << "Welcome! Player ID: " << playerId
                           << (isHost ? " [HOST]" : " [GUEST]") << std::endl;
             }
             catch (const std::exception& e) {
-                std::cerr << "Failed to parse welcome: " << e.what() << "\n";
+                std::cerr << utils::ts() << "Failed to parse welcome: " << e.what() << "\n";
                 running = false;
                 return;
             }
@@ -133,7 +134,7 @@ namespace network {
                 sendLine(client_fd, ps.dump());
             }
             catch (const std::exception& e) {
-                std::cerr << "ERROR building player state: " << e.what() << "\n";
+                std::cerr << utils::ts() << "ERROR building player state: " << e.what() << "\n";
             }
 
             // 3b. If host, also send world state (NPCs + buildings)
@@ -146,13 +147,13 @@ namespace network {
                     sendLine(client_fd, ws.dump());
                 }
                 catch (const std::exception& e) {
-                    std::cerr << "ERROR building world state: " << e.what() << "\n";
+                    std::cerr << utils::ts() << "ERROR building world state: " << e.what() << "\n";
                 }
             }
 
             // 3c. Receive world update from server
             if (!readLine(client_fd, buffer, line)) {
-                std::cerr << "Server disconnected!\n";
+                std::cerr << utils::ts() << "Server disconnected!\n";
                 running = false;
                 break;
             }
@@ -165,8 +166,8 @@ namespace network {
                 }
             }
             catch (const std::exception& e) {
-                std::cerr << "ERROR parsing world update: " << e.what() << "\n";
-                std::cerr << "  Raw: " << line.substr(0, 200) << "\n";
+                std::cerr << utils::ts() << "ERROR parsing world update: " << e.what() << "\n";
+                std::cerr << utils::ts() << "  Raw: " << line.substr(0, 200) << "\n";
             }
         }
     }
