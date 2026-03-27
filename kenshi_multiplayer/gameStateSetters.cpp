@@ -4,6 +4,7 @@
 #include "gameStateSetters.h"
 #include "gameStateGetters.h"
 #include "network.h"
+#include "charHijack.h"
 #include "utils.h"
 #include "json.hpp"
 #include <string>
@@ -111,7 +112,7 @@ namespace gameState {
         return nullptr;
     }
 
-    static void applyCharacterPosition(const json& charData) {
+    static void applyCharacterPosition(const json& charData, int playerId) {
         std::string name = charData.value("n", "");
         if (name.empty()) return;
 
@@ -124,6 +125,9 @@ namespace gameState {
         if (anim) {
             safeSetPosition(anim, x, y, z);
             remoteChars[name] = GetTickCount64(); // mark as remotely controlled
+        } else {
+            // Character doesn't exist locally — queue NPC hijack
+            charHijack::queueSpawn(playerId, name, x, y, z);
         }
     }
 
@@ -144,9 +148,10 @@ namespace gameState {
         if (wu.contains("players")) {
             for (auto it = wu["players"].begin(); it != wu["players"].end(); ++it) {
                 const json& playerData = *it;
+                int pid = playerData.value("id", 0);
                 if (playerData.contains("chars")) {
                     for (auto ch = playerData["chars"].begin(); ch != playerData["chars"].end(); ++ch) {
-                        applyCharacterPosition(*ch);
+                        applyCharacterPosition(*ch, pid);
                     }
                 }
             }

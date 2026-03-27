@@ -36,7 +36,7 @@ LD   := link
 
 SOURCES := pch.cpp commands.cpp crashlog.cpp dllmain.cpp func.cpp gameState.cpp \
            gameStateGetters.cpp gameStateSetters.cpp gui_console.cpp \
-           network.cpp offsets.cpp patternScan.cpp utils.cpp
+           network.cpp offsets.cpp patternScan.cpp charHijack.cpp utils.cpp
 
 OBJECTS := $(patsubst %.cpp,$(INTDIR)/%.obj,$(SOURCES))
 

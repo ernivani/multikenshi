@@ -12,6 +12,7 @@
 
 #include "network.h"
 #include "offsets.h"
+#include "charHijack.h"
 #include "json.hpp"
 #include "utils.h"
 
@@ -191,6 +192,10 @@ namespace network {
                     }
                 }
             }
+
+            // Process NPC hijacks (check for new characters to claim)
+            if (charHijack::hasPendingSpawns())
+                charHijack::processHijacks();
 
             // Only do entity sync every 200ms
             long long now = GetTickCount64();
