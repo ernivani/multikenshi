@@ -27,14 +27,7 @@ public class SaveManager
         Converters = { new TimeSpanConverter() }
     };
 
-    private readonly string _savesRoot;
-
-    public SaveManager()
-    {
-        var exeDir = Path.GetDirectoryName(
-            System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName)!;
-        _savesRoot = Path.Combine(exeDir, "saves");
-    }
+    private readonly string _savesRoot = Paths.SavesDir;
 
     public List<SaveSummary> ListSaves()
     {

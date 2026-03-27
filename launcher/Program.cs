@@ -7,7 +7,7 @@ namespace KenshiLauncher;
 
 class Program
 {
-    public const string Version = "0.4.7";
+    public const string Version = "0.5.0";
 
     [STAThread]
     public static void Main(string[] args)
@@ -26,6 +26,10 @@ class Program
                 catch { }
             }
         }
+
+        // Setup AppData directories and migrate old files
+        Paths.EnsureDirectories();
+        Paths.MigrateFromLauncherDir();
 
         // Clean up old launcher from previous update
         try

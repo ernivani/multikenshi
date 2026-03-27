@@ -83,9 +83,7 @@ public static class GitHubUpdater
             if (dllUrl == null)
                 return (false, "No DLL in release.");
 
-            var launcherDir = Path.GetDirectoryName(
-                System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "")!;
-            var localDll = Path.Combine(launcherDir, DllName);
+            var localDll = Paths.DllPath;
 
             bool needDll = !File.Exists(localDll) ||
                            (dllSize > 0 && new FileInfo(localDll).Length != dllSize);
@@ -140,19 +138,19 @@ public static class GitHubUpdater
 
             if (launcherUrl == null) return false;
 
-            // Compare version tag with local version
-            var remoteTag = release.GetProperty("tag_name").GetString() ?? "";
-            var remoteVersion = remoteTag.TrimStart('v');
-            if (remoteVersion == Program.Version)
+            var currentExe = Process.GetCurrentProcess().MainModule?.FileName;
+            if (currentExe == null) return false;
+
+            // Compare file size — only download if the exe actually changed
+            var currentSize = new FileInfo(currentExe).Length;
+            if (remoteSize > 0 && currentSize == remoteSize)
             {
                 log?.Invoke($"Launcher v{Program.Version} is up to date.");
                 return false;
             }
 
-            var currentExe = Process.GetCurrentProcess().MainModule?.FileName;
-            if (currentExe == null) return false;
-
-            log?.Invoke($"Updating launcher: v{Program.Version} -> v{remoteVersion}...");
+            var remoteTag = release.GetProperty("tag_name").GetString() ?? "";
+            log?.Invoke($"Updating launcher: v{Program.Version} -> {remoteTag}...");
             var bytes = await _http.GetByteArrayAsync(launcherUrl);
 
             // Swap: rename current exe to .old, write new exe, restart

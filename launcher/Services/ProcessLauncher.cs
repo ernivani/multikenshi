@@ -27,14 +27,7 @@ public static class ProcessLauncher
         return Process.Start(psi);
     }
 
-    public static string GetDllPath()
-    {
-        var dir = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule!.FileName)!;
-        return Path.Combine(dir, "kenshi_multiplayer.dll");
-    }
+    public static string GetDllPath() => Paths.DllPath;
 
-    public static bool DllExists()
-    {
-        return File.Exists(GetDllPath());
-    }
+    public static bool DllExists() => File.Exists(Paths.DllPath);
 }

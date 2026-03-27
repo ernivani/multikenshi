@@ -1,4 +1,3 @@
-using System;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -13,18 +12,12 @@ public class ConfigManager
     [DllImport("kernel32.dll", CharSet = CharSet.Ansi)]
     private static extern bool WritePrivateProfileStringA(string section, string key, string value, string filePath);
 
-    private readonly string _iniPath;
+    private readonly string _iniPath = Paths.ConfigPath;
 
     public string KenshiPath { get; set; } = "";
     public string ServerPort { get; set; } = "8080";
     public string ClientIP { get; set; } = "127.0.0.1";
     public string ClientPort { get; set; } = "8080";
-
-    public ConfigManager()
-    {
-        var dir = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule!.FileName)!;
-        _iniPath = Path.Combine(dir, "launcher.ini");
-    }
 
     public void Load()
     {
