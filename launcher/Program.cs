@@ -1,5 +1,6 @@
 using Avalonia;
 using System;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using KenshiLauncher.Services;
 
@@ -7,7 +8,11 @@ namespace KenshiLauncher;
 
 class Program
 {
-    public const string Version = "0.4.2";
+    public const string Version = "0.4.3";
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
+
     [STAThread]
     public static void Main(string[] args)
     {
@@ -24,12 +29,21 @@ class Program
         if (!GitHubUpdater.IsDevMode())
         {
             var updateTask = GitHubUpdater.CheckLauncherUpdate(msg => Console.WriteLine(msg));
-            updateTask.Wait(TimeSpan.FromSeconds(10));
-            if (updateTask.IsCompletedSuccessfully && updateTask.Result)
+
+            // Quick check — did it finish fast?
+            updateTask.Wait(TimeSpan.FromSeconds(3));
+
+            if (!updateTask.IsCompleted)
             {
-                // Updated and restarting — exit this instance
-                return;
+                // Still downloading — tell the user
+                MessageBoxW(IntPtr.Zero,
+                    "Downloading update, please wait...\nThe launcher will restart automatically.",
+                    "MultiKenshi — Updating", 0x00000040); // MB_ICONINFORMATION
+                updateTask.Wait(TimeSpan.FromSeconds(30));
             }
+
+            if (updateTask.IsCompletedSuccessfully && updateTask.Result)
+                return; // restarting
         }
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
