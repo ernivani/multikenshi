@@ -23,7 +23,7 @@ public static class GitHubUpdater
 
     static GitHubUpdater()
     {
-        _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("MultiKenshi", "0.4"));
+        _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("MultiKenshi", Program.Version));
     }
 
     /// <summary>
@@ -184,14 +184,19 @@ public static class GitHubUpdater
 
             if (launcherUrl == null) return false;
 
+            // Compare version tag with local version
+            var remoteTag = release.GetProperty("tag_name").GetString() ?? "";
+            var remoteVersion = remoteTag.TrimStart('v');
+            if (remoteVersion == Program.Version)
+            {
+                log?.Invoke($"Launcher v{Program.Version} is up to date.");
+                return false;
+            }
+
             var currentExe = Process.GetCurrentProcess().MainModule?.FileName;
             if (currentExe == null) return false;
 
-            var currentSize = new FileInfo(currentExe).Length;
-            if (remoteSize > 0 && currentSize == remoteSize)
-                return false; // same size = same version
-
-            log?.Invoke("New launcher version available, downloading...");
+            log?.Invoke($"Updating launcher: v{Program.Version} -> v{remoteVersion}...");
             var bytes = await _http.GetByteArrayAsync(launcherUrl);
 
             // Swap: rename current exe to .old, write new exe, restart

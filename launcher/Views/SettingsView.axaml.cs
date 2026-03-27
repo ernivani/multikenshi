@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Media;
+using KenshiLauncher.Services;
 using KenshiLauncher.ViewModels;
 
 namespace KenshiLauncher.Views;
@@ -12,6 +13,10 @@ public partial class SettingsView : UserControl
     public SettingsView()
     {
         InitializeComponent();
+
+        var verLabel = this.FindControl<Avalonia.Controls.TextBlock>("VersionLabel");
+        if (verLabel != null)
+            verLabel.Text = $"v{Program.Version}" + (GitHubUpdater.IsDevMode() ? " (dev)" : "");
 
         DataContextChanged += (_, _) =>
         {

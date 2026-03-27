@@ -228,6 +228,7 @@ public partial class PlayViewModel : ObservableObject
                 GameConfigWriter.Write(_config.KenshiPath, JoinIP, JoinPort, sName, sId);
 
                 // Auto-download DLL + mod from GitHub releases if needed
+                _main.PostLog($"MultiKenshi v{Program.Version}");
                 var (dllUp, modUp, updateMsg) = await GitHubUpdater.CheckAndUpdate(_main.PostLog);
                 if (dllUp || modUp)
                     _main.PostLog(updateMsg);

@@ -5,7 +5,10 @@
              x:DataType="vm:SettingsViewModel">
 
   <StackPanel>
-    <TextBlock Text="Settings" FontSize="20" FontWeight="Bold" Foreground="#F0F0F0" />
+    <StackPanel Orientation="Horizontal" Spacing="10">
+      <TextBlock Text="Settings" FontSize="20" FontWeight="Bold" Foreground="#F0F0F0" />
+      <TextBlock Name="VersionLabel" FontSize="12" Foreground="#3a3a3a" VerticalAlignment="Bottom" Margin="0,0,0,2" />
+    </StackPanel>
     <TextBlock Text="Configure game path and preferences" FontSize="12" Foreground="#3a3a3a" Margin="0,4,0,24" />
 
     <!-- Kenshi path -->

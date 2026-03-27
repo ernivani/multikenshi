@@ -11,6 +11,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Title = $"Kenshi Multi v{Program.Version}";
 
         var joinOverlay = this.FindControl<Border>("JoinOverlay");
         if (joinOverlay != null)
