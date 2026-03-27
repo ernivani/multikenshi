@@ -49,10 +49,20 @@ namespace charHijack {
     }
 
     // Look up a hijacked NPC by its remote character name
-    // Called from applyCharacterPosition when safeFindChar fails on charsByName
+    static long long lastHijackLog = 0;
+
     structs::AnimationClassHuman* findHijacked(const std::string& name) {
         auto it = hijackedChars.find(name);
-        return (it != hijackedChars.end()) ? it->second : nullptr;
+        if (it != hijackedChars.end()) {
+            // Log every 10s to confirm position updates are flowing
+            long long now = GetTickCount64();
+            if (now - lastHijackLog > 10000) {
+                lastHijackLog = now;
+                std::cout << utils::ts() << "Updating hijacked '" << name << "'" << std::endl;
+            }
+            return it->second;
+        }
+        return nullptr;
     }
 
     // SEH-safe position writer
