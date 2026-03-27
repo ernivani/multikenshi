@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Data.Converters;
 
 using Avalonia.Media;
+using KenshiLauncher.Services;
 using KenshiLauncher.ViewModels;
 
 namespace KenshiLauncher.Views;
@@ -39,19 +40,25 @@ public partial class PlayView : UserControl
 
     private void UpdateStatusDot(DllStatus status)
     {
+        var dllVer = GitHubUpdater.StartupDllVersion;
+        var updateStatus = GitHubUpdater.StartupDllStatus;
+
         switch (status)
         {
             case DllStatus.Ready:
                 StatusDot.Fill = GreenBrush;
                 StatusLabel.Text = "ready";
                 StatusLabel.Foreground = Text2Brush;
-                StatusSubLabel.Text = $"kenshi_multiplayer.dll v{Program.Version}";
+                if (!string.IsNullOrEmpty(dllVer))
+                    StatusSubLabel.Text = $"DLL {dllVer} | {updateStatus}";
+                else
+                    StatusSubLabel.Text = $"kenshi_multiplayer.dll v{Program.Version}";
                 break;
             case DllStatus.Outdated:
                 StatusDot.Fill = AccentBrush;
                 StatusLabel.Text = "update available";
                 StatusLabel.Foreground = Text2Brush;
-                StatusSubLabel.Text = "newer DLL available \u2014 downloads on connect";
+                StatusSubLabel.Text = "newer DLL available, downloads on connect";
                 break;
             case DllStatus.Missing:
                 StatusDot.Fill = RedBrush;

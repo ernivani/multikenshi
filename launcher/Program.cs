@@ -7,7 +7,7 @@ namespace KenshiLauncher;
 
 class Program
 {
-    public const string Version = "0.5.4";
+    public const string Version = "0.5.5";
 
     [STAThread]
     public static void Main(string[] args)
@@ -54,6 +54,12 @@ class Program
             // 2. Check DLL update
             var dllTask = GitHubUpdater.UpdateDll(msg => Console.WriteLine(msg));
             dllTask.Wait(TimeSpan.FromSeconds(15));
+            if (dllTask.IsCompletedSuccessfully)
+            {
+                var (updated, msg) = dllTask.Result;
+                GitHubUpdater.StartupDllStatus = updated ? msg : "Up to date";
+                GitHubUpdater.StartupDllVersion = GitHubUpdater.GetInstalledDllVersion();
+            }
         }
         else
         {

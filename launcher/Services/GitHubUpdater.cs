@@ -17,6 +17,10 @@ public static class GitHubUpdater
 
     private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(30) };
 
+    // Startup results - read by UI after app loads
+    public static string StartupDllStatus { get; set; } = "";
+    public static string StartupDllVersion { get; set; } = "";
+
     static GitHubUpdater()
     {
         _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("MultiKenshi", Program.Version));
