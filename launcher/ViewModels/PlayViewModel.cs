@@ -232,6 +232,9 @@ public partial class PlayViewModel : ObservableObject
                 if (dllUp || modUp)
                     _main.PostLog(updateMsg);
 
+                // Install mod to Kenshi's mods directory (copies from launcher dir)
+                GameConfigWriter.EnsureMod(_config.KenshiPath);
+
                 var process = ProcessLauncher.FindKenshiProcess();
                 int pid;
 
