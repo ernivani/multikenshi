@@ -7,7 +7,7 @@ namespace KenshiLauncher;
 
 class Program
 {
-    public const string Version = "0.5.1";
+    public const string Version = "0.5.2";
 
     [STAThread]
     public static void Main(string[] args)
