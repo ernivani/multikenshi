@@ -34,6 +34,7 @@ namespace gameState {
     void initGameWorld();
     extern structs::AnimationClassHuman* player;
     extern structs::AnimationClassHuman* otherplayers;
+    extern std::string playerFactionName;
     void scanHeap();
 
     // New JSON-based entity collection

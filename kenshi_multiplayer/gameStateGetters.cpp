@@ -115,8 +115,7 @@ namespace gameState {
     // ---------- New JSON entity collection ----------
 
     std::string getPlayerFaction() {
-        if (!player) return "";
-        return std::string(safeGetFactionName(player));
+        return playerFactionName;
     }
 
     // Get our squad characters as JSON array
@@ -126,6 +125,14 @@ namespace gameState {
         if (!player) return arr;
 
         std::string ourFaction = getPlayerFaction();
+        // Fallback: try to read faction live if it wasn't captured at detection
+        if (ourFaction.empty()) {
+            ourFaction = std::string(safeGetFactionName(player));
+            if (!ourFaction.empty()) {
+                playerFactionName = ourFaction;
+                std::cout << "Player faction detected (late): " << ourFaction << std::endl;
+            }
+        }
         if (ourFaction.empty()) return arr;
 
         long long now = GetTickCount64();

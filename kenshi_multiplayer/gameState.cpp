@@ -24,12 +24,9 @@ namespace gameState {
     void init() {
         while (gameLoaded == false)Sleep(500);
         setupHooks();
-        //variables.push_back(trackedVariable([](const std::string& _) {}, []() -> std::string { return "B";}));//test var
-        variables.push_back(trackedVariable(setFaction, getFaction));
-        variables.push_back(trackedVariable(setSpeed, getSpeed));
-        //variables.push_back(trackedVariable(setPlayers, getPlayer));
-        variables.push_back(trackedVariable(setPlayer1, getPlayer1));
-        variables.push_back(trackedVariable(setPlayer2, getPlayer2));
+        // Old tracked variables no longer used — JSON protocol handles everything
+        // Kept as empty vector for backward compatibility with getData/setData
+        std::cout << "Hooks + JSON protocol ready." << std::endl;
     }
     void setData(const std::string& data) {
         std::string line;
@@ -75,6 +72,9 @@ namespace gameState {
             return 0;
         }
     }
+    // Faction name of the auto-detected player (empty until detected)
+    std::string playerFactionName;
+
     void onCharUpdate(structs::AnimationClassHuman* num) {
         if (!num) return;
         structs::CharacterHuman* ch = (structs::CharacterHuman*)safeReadPtr(num, 0x2D8);
@@ -85,8 +85,22 @@ namespace gameState {
             std::string nameStr(chosenName);
             chars[(structs::AnimationClassHuman*)ch] = std::make_pair(nameStr, 0);
             charsByName[nameStr] = num;
-            if (strcmp(chosenName, getOwnCharName().c_str()) == 0) player = num;
-            if (strcmp(chosenName, getOtherCharName().c_str()) == 0) otherplayers = num;
+
+            // Auto-detect player: first character we see becomes our player
+            // (the player's characters are always loaded first)
+            if (!player) {
+                player = num;
+                // Read faction name from this character
+                structs::Faction* fac = (structs::Faction*)safeReadPtr(ch, 0x10);
+                if (fac) {
+                    const char* facName = fac->getName();
+                    if (facName && utils::isValidName(facName)) {
+                        playerFactionName = facName;
+                        std::cout << "Player detected: " << nameStr
+                                  << " (faction: " << playerFactionName << ")" << std::endl;
+                    }
+                }
+            }
         } else {
             // Update charsByName mapping (pointer may have changed)
             charsByName[chars[(structs::AnimationClassHuman*)ch].first] = num;

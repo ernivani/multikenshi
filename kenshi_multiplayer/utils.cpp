@@ -29,8 +29,11 @@ namespace utils {
 		__try {
 			if (!name || strlen(name) < 2) return false; // Must be at least 2 characters long
 			for (size_t i = 0; name[i] != '\0'; ++i) {
-				if (!std::isalnum(name[i]) && name[i] != ' ' && name[i] != '(' && name[i] != ')' && name[i] != '_') {
-					return false; // Found weird characters, so it's probably not a valid name
+				unsigned char c = (unsigned char)name[i];
+				// Allow printable ASCII + common extended chars (accents etc)
+				// Reject control chars (0-31) and DEL (127)
+				if (c < 32 || c == 127) {
+					return false;
 				}
 			}
 			return true;
@@ -45,8 +48,7 @@ namespace utils {
 		if (!valid1 && valid2) { return thisName;}
 
 		if (!valid1 && !valid2) {
-			std::cout <<"bad Names: " << &derefName << " " << &thisName << "\n";
-			return thisName;
+			return thisName; // Both invalid — silently return raw name
 		}
 		return (strlen(derefName) >= strlen(thisName)) ? derefName : thisName;
 	}
