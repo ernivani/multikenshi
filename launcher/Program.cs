@@ -8,7 +8,7 @@ namespace KenshiLauncher;
 
 class Program
 {
-    public const string Version = "0.4.3";
+    public const string Version = "0.4.4";
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
