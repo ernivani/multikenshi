@@ -42,9 +42,12 @@ public partial class HostWindow : Window
                 ? new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#4a9e6a"))
                 : new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#9a3a3a"));
         if (text != null)
-            text.Text = vm.IsRunning
+        {
+            var label = vm.IsRunning
                 ? $"Running on port {vm.ServerPort}"
                 : "Stopped";
+            text.Text = label;
+        }
     }
 
     private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs e)

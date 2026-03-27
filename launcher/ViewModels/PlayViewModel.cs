@@ -16,6 +16,7 @@ public partial class PlayViewModel : ObservableObject
     private readonly MainViewModel _main;
     private readonly RelayServer _server;
     private readonly HostViewModel _host;
+    private readonly SaveManager _saveManager;
     private Process? _kenshiProcess;
     private Timer? _processTimer;
 
@@ -29,6 +30,15 @@ public partial class PlayViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isHostModalOpen;
+
+    // Save picker modal
+    [ObservableProperty]
+    private bool _isSavePickerOpen;
+
+    [ObservableProperty]
+    private SaveSummaryViewModel? _selectedSaveForHost;
+
+    public ObservableCollection<SaveSummaryViewModel> SavePickerSaves { get; } = new();
 
     // Join modal fields
     [ObservableProperty]
@@ -99,12 +109,13 @@ public partial class PlayViewModel : ObservableObject
 
     public ObservableCollection<ChangelogEntry> Changelog { get; } = new();
 
-    public PlayViewModel(ConfigManager config, MainViewModel main, RelayServer server, HostViewModel host)
+    public PlayViewModel(ConfigManager config, MainViewModel main, RelayServer server, HostViewModel host, SaveManager saveManager)
     {
         _config = config;
         _main = main;
         _server = server;
         _host = host;
+        _saveManager = saveManager;
 
         _joinIP = config.ClientIP;
         _joinPort = config.ClientPort;
@@ -381,16 +392,49 @@ public partial class PlayViewModel : ObservableObject
         _config.ServerPort = HostPort;
         _config.Save();
 
-        // Delegate to HostViewModel's toggle logic
+        // Populate save picker
+        SavePickerSaves.Clear();
+        foreach (var s in _saveManager.ListSaves())
+            SavePickerSaves.Add(new SaveSummaryViewModel(s));
+
+        SelectedSaveForHost = null;
+        IsSavePickerOpen = true;
+    }
+
+    [RelayCommand]
+    private void ConfirmSavePick()
+    {
+        IsSavePickerOpen = false;
+
+        string folderName;
+        if (SelectedSaveForHost != null)
+        {
+            folderName = SelectedSaveForHost.FolderName;
+        }
+        else
+        {
+            // Create new save
+            var name = $"Session {DateTime.Now:yyyy-MM-dd HH.mm}";
+            int port = int.TryParse(HostPort, out var p) ? p : 7777;
+            int max = int.TryParse(HostMaxPlayers, out var m) ? m : 8;
+            folderName = _saveManager.CreateSave(name, port, max, HostPassword);
+        }
+
+        _host.LoadSave(folderName);
         _host.ServerPort = HostPort;
         _host.ToggleServerCommand.Execute(null);
 
-        // Open the dedicated server window
         if (_host.IsRunning)
         {
             var window = new Views.HostWindow { DataContext = _host };
             window.Show();
         }
+    }
+
+    [RelayCommand]
+    private void CancelSavePick()
+    {
+        IsSavePickerOpen = false;
     }
 
     [RelayCommand]

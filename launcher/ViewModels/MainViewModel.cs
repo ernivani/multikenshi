@@ -10,6 +10,7 @@ public partial class MainViewModel : ObservableObject
 {
     private readonly ConfigManager _config = new();
     private readonly RelayServer _server = new();
+    private readonly SaveManager _saveManager = new();
 
     [ObservableProperty]
     private object? _currentPage;
@@ -25,6 +26,7 @@ public partial class MainViewModel : ObservableObject
     public PlayViewModel Play { get; }
     public HostViewModel Host { get; }
     public SettingsViewModel Settings { get; }
+    public SavesViewModel Saves { get; }
 
     public MainViewModel()
     {
@@ -34,8 +36,9 @@ public partial class MainViewModel : ObservableObject
         var (name, _) = SteamIdentity.GetCurrentUser();
         SteamName = name;
 
-        Host = new HostViewModel(_config, _server, this);
-        Play = new PlayViewModel(_config, this, _server, Host);
+        Saves = new SavesViewModel(_saveManager);
+        Host = new HostViewModel(_config, _server, this, _saveManager);
+        Play = new PlayViewModel(_config, this, _server, Host, _saveManager);
         Settings = new SettingsViewModel(_config, this);
 
         // Auto-detect Kenshi path if not set
@@ -110,6 +113,11 @@ public partial class MainViewModel : ObservableObject
                 CurrentPage = Play;
                 Play.RefreshDllStatus();
                 break;
+            case "Saves":
+                ActiveTab = "Saves";
+                CurrentPage = Saves;
+                Saves.RefreshSaves();
+                break;
             case "Settings":
                 ActiveTab = "Settings";
                 CurrentPage = Settings;
@@ -121,7 +129,11 @@ public partial class MainViewModel : ObservableObject
     public void OnShutdown()
     {
         _config.Save();
-        _server.Stop();
+        if (_server.IsRunning)
+        {
+            Host.PerformSave();
+            _server.Stop();
+        }
     }
 }
 

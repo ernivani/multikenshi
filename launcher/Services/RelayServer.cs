@@ -9,6 +9,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using KenshiLauncher.Models;
 
 namespace KenshiLauncher.Services;
 
@@ -34,6 +35,7 @@ public class RelayServer
 
     public bool IsRunning { get; private set; }
     public Action<string>? Log { get; set; }
+    public Action? OnManualSaveRequested { get; set; }
     public ObservableCollection<ClientInfo> Clients { get; } = new();
     public ObservableCollection<string> ServerLog { get; } = new();
 
@@ -42,13 +44,16 @@ public class RelayServer
         get { lock (_lock) return _clients.Count; }
     }
 
-    public void Start(int port)
+    public void Start(int port, bool restoreFromSave = false)
     {
         if (IsRunning) return;
 
-        _plr1 = (-5139.11f, 158.019f, 345.631f);
-        _plr2 = (-5139.11f, 158.019f, 345.631f);
-        _speed = 1.0f;
+        if (!restoreFromSave)
+        {
+            _plr1 = (-5139.11f, 158.019f, 345.631f);
+            _plr2 = (-5139.11f, 158.019f, 345.631f);
+            _speed = 1.0f;
+        }
         _clientIdCounter = 1;
 
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -61,6 +66,23 @@ public class RelayServer
         IsRunning = true;
 
         Task.Run(() => ListenLoop(port, _cts.Token));
+    }
+
+    public GameStateData CaptureState()
+    {
+        return new GameStateData
+        {
+            Speed = _speed,
+            Player1Position = new Vec3(_plr1.x, _plr1.y, _plr1.z),
+            Player2Position = new Vec3(_plr2.x, _plr2.y, _plr2.z)
+        };
+    }
+
+    public void RestoreState(GameStateData state)
+    {
+        _speed = state.Speed;
+        _plr1 = (state.Player1Position.X, state.Player1Position.Y, state.Player1Position.Z);
+        _plr2 = (state.Player2Position.X, state.Player2Position.Y, state.Player2Position.Z);
     }
 
     public void Stop()
@@ -299,12 +321,17 @@ public class RelayServer
                     PostLog("Usage: /kick <id>");
                 break;
 
+            case "/save":
+                OnManualSaveRequested?.Invoke();
+                PostLog("Manual save triggered.");
+                break;
+
             case "/stop":
                 Stop();
                 break;
 
             case "/help":
-                PostLog("Commands: /speed <value>, /kick <id>, /stop, /help");
+                PostLog("Commands: /speed <value>, /kick <id>, /save, /stop, /help");
                 break;
 
             default:

@@ -1,3 +1,4 @@
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -18,6 +19,10 @@ public partial class MainWindow : Window
         var hostOverlay = this.FindControl<Border>("HostOverlay");
         if (hostOverlay != null)
             hostOverlay.PointerPressed += OnOverlayPointerPressed;
+
+        var savePickerOverlay = this.FindControl<Border>("SavePickerOverlay");
+        if (savePickerOverlay != null)
+            savePickerOverlay.PointerPressed += OnSavePickerOverlayPressed;
     }
 
     private void OnOverlayPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -26,6 +31,30 @@ public partial class MainWindow : Window
         {
             vm.Play.CloseJoinModalCommand.Execute(null);
             vm.Play.CloseHostModalCommand.Execute(null);
+        }
+    }
+
+    private void OnSavePickerOverlayPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Source == sender && DataContext is MainViewModel vm)
+        {
+            vm.Play.CancelSavePickCommand.Execute(null);
+        }
+    }
+
+    private void SavePickerNewSession_Click(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            vm.Play.SelectedSaveForHost = null;
+        }
+    }
+
+    private void SavePickerItem_Click(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is Border border && border.DataContext is SaveSummaryViewModel save && DataContext is MainViewModel vm)
+        {
+            vm.Play.SelectedSaveForHost = save;
         }
     }
 

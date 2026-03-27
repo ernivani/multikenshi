@@ -1,0 +1,127 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:KenshiLauncher.ViewModels"
+             x:Class="KenshiLauncher.Views.SavesView"
+             x:DataType="vm:SavesViewModel">
+
+  <DockPanel>
+    <!-- Header -->
+    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+      <TextBlock Text="Saves" FontSize="20" FontWeight="SemiBold" Foreground="#F0F0F0" />
+      <TextBlock Text="Manage your server save files" FontSize="12" Foreground="#6b6b6b" Margin="0,4,0,0" />
+    </StackPanel>
+
+    <!-- Bottom actions -->
+    <StackPanel DockPanel.Dock="Bottom" Spacing="8">
+      <!-- Create new save -->
+      <Border Background="#1a1a1a" CornerRadius="5" Padding="12,10"
+              BorderBrush="#262626" BorderThickness="1">
+        <Grid ColumnDefinitions="*,8,Auto">
+          <TextBox Grid.Column="0" Text="{Binding NewSaveName}"
+                   Watermark="New save name..."
+                   Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
+          <Button Grid.Column="2" Classes="accent" Height="30" Padding="14,0" FontSize="11"
+                  Content="Create" VerticalContentAlignment="Center"
+                  Command="{Binding CreateSaveCommand}" />
+        </Grid>
+      </Border>
+
+      <!-- Selected save actions -->
+      <Border Background="#1a1a1a" CornerRadius="5" Padding="12,10"
+              BorderBrush="#262626" BorderThickness="1"
+              IsVisible="{Binding SelectedSave, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <StackPanel Spacing="8">
+          <!-- Normal actions (shown when not confirming delete or renaming) -->
+          <Grid ColumnDefinitions="*,Auto,8,Auto">
+            <Grid.IsVisible>
+              <MultiBinding Converter="{x:Static BoolConverters.And}">
+                <Binding Path="!IsDeleteConfirmOpen" />
+                <Binding Path="!IsRenameOpen" />
+              </MultiBinding>
+            </Grid.IsVisible>
+            <TextBlock Grid.Column="0" Text="{Binding SelectedSave.Name}"
+                       FontSize="12" Foreground="#F0F0F0" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" />
+            <Button Grid.Column="1" Classes="ghost" Height="26" Padding="10,0" FontSize="11"
+                    Content="Rename" VerticalContentAlignment="Center"
+                    Command="{Binding OpenRenameCommand}" />
+            <Button Grid.Column="3" Classes="danger" Height="26" Padding="10,0" FontSize="11"
+                    Content="Delete" VerticalContentAlignment="Center"
+                    Command="{Binding ConfirmDeleteCommand}" />
+          </Grid>
+
+          <!-- Delete confirmation -->
+          <Border Background="#1a0808" CornerRadius="4" Padding="10,8"
+                  IsVisible="{Binding IsDeleteConfirmOpen}">
+            <Grid ColumnDefinitions="*,Auto,8,Auto">
+              <TextBlock Grid.Column="0" Text="Delete this save permanently?"
+                         FontSize="11" Foreground="#ff6b6b" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="danger" Height="26" Padding="10,0" FontSize="11"
+                      Content="Confirm" VerticalContentAlignment="Center"
+                      Command="{Binding DeleteSaveCommand}" />
+              <Button Grid.Column="3" Classes="ghost" Height="26" Padding="10,0" FontSize="11"
+                      Content="Cancel" VerticalContentAlignment="Center"
+                      Command="{Binding CancelDeleteCommand}" />
+            </Grid>
+          </Border>
+
+          <!-- Rename inline -->
+          <Grid ColumnDefinitions="*,8,Auto,8,Auto"
+                IsVisible="{Binding IsRenameOpen}">
+            <TextBox Grid.Column="0" Text="{Binding RenameText}"
+                     Background="#0f0f0f" FontSize="12" Padding="10,6" Height="30" />
+            <Button Grid.Column="2" Classes="accent" Height="30" Padding="10,0" FontSize="11"
+                    Content="Save" VerticalContentAlignment="Center"
+                    Command="{Binding ApplyRenameCommand}" />
+            <Button Grid.Column="4" Classes="ghost" Height="30" Padding="10,0" FontSize="11"
+                    Content="Cancel" VerticalContentAlignment="Center"
+                    Command="{Binding CancelRenameCommand}" />
+          </Grid>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <!-- Save list -->
+    <ListBox ItemsSource="{Binding Saves}"
+             SelectedItem="{Binding SelectedSave}"
+             Background="Transparent"
+             Margin="0,0,0,12">
+      <ListBox.Styles>
+        <Style Selector="ListBoxItem">
+          <Setter Property="Padding" Value="12,10" />
+          <Setter Property="Margin" Value="0,0,0,4" />
+          <Setter Property="CornerRadius" Value="5" />
+          <Setter Property="Background" Value="#1a1a1a" />
+        </Style>
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+          <Setter Property="Background" Value="#222222" />
+        </Style>
+        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+          <Setter Property="Background" Value="#1f1f1f" />
+        </Style>
+      </ListBox.Styles>
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="vm:SaveSummaryViewModel">
+          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Name}"
+                       FontSize="13" FontWeight="Medium" Foreground="#F0F0F0" />
+            <TextBlock Grid.Row="0" Grid.Column="1" FontSize="11" Foreground="#6b6b6b"
+                       VerticalAlignment="Center">
+              <TextBlock.Text>
+                <MultiBinding StringFormat="port {0}">
+                  <Binding Path="Port" />
+                </MultiBinding>
+              </TextBlock.Text>
+            </TextBlock>
+            <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                        Orientation="Horizontal" Spacing="12" Margin="0,4,0,0">
+              <TextBlock Text="{Binding PlayerCountText}" FontSize="11" Foreground="#6b6b6b" />
+              <TextBlock Text="{Binding SessionTimeText}" FontSize="11" Foreground="#6b6b6b" />
+              <TextBlock Text="{Binding LastModifiedText}" FontSize="11" Foreground="#3a3a3a" />
+            </StackPanel>
+          </Grid>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </DockPanel>
+</UserControl>

@@ -111,6 +111,29 @@
               </Button>
             </Panel>
             <Panel>
+              <Border IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=Saves}"
+                      Width="2" CornerRadius="0,1,1,0"
+                      Background="#c8a052"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Stretch"
+                      Margin="0,5,0,5" />
+              <Button Classes="nav"
+                      Classes.active="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=Saves}"
+                      Command="{Binding NavigateToCommand}"
+                      CommandParameter="Saves"
+                      Padding="16,6">
+                <StackPanel Orientation="Horizontal" Spacing="9">
+                  <Path Data="M19,21 L5,21 C3.9,21 3,20.1 3,19 L3,5 C3,3.9 3.9,3 5,3 L16,3 L21,8 L21,19 C21,20.1 20.1,21 19,21 Z M17,21 L17,13 L7,13 L7,21 M7,3 L7,8 L15,8"
+                        Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.5"
+                        Fill="Transparent"
+                        Stretch="Uniform" Width="13" Height="13"
+                        VerticalAlignment="Center" />
+                  <TextBlock Text="Saves" FontSize="12"
+                             Foreground="{Binding $parent[Button].Foreground}" />
+                </StackPanel>
+              </Button>
+            </Panel>
+            <Panel>
               <Border IsVisible="{Binding ActiveTab, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=Settings}"
                       Width="2" CornerRadius="0,1,1,0"
                       Background="#c8a052"
@@ -188,6 +211,69 @@
             </StackPanel>
           </Border>
         </StackPanel>
+      </Border>
+    </Border>
+
+    <!-- Save Picker Modal Overlay (full-window) -->
+    <Border Name="SavePickerOverlay" Background="#99000000" IsVisible="{Binding Play.IsSavePickerOpen}"
+            Grid.RowSpan="2"
+            HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+      <Border Background="#1a1a1a" CornerRadius="6" Width="360" MaxHeight="440"
+              HorizontalAlignment="Center" VerticalAlignment="Center"
+              BorderBrush="#303030" BorderThickness="1">
+        <DockPanel>
+          <Border DockPanel.Dock="Top" BorderBrush="#262626" BorderThickness="0,0,0,1" Padding="16,14,16,12">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="Select a save" FontSize="13" FontWeight="Medium" Foreground="#F0F0F0" />
+              <Button Grid.Column="1" Classes="modal-close" Content="&#x2715;"
+                      Command="{Binding Play.CancelSavePickCommand}" />
+            </Grid>
+          </Border>
+          <Border DockPanel.Dock="Bottom" BorderBrush="#262626" BorderThickness="0,1,0,0" Padding="16,12">
+            <StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Right">
+              <Button Classes="ghost" Height="28" Padding="14,0" FontSize="11"
+                      Content="Cancel" VerticalContentAlignment="Center"
+                      Command="{Binding Play.CancelSavePickCommand}" />
+              <Button Classes="accent" Height="28" Padding="14,0" FontSize="11"
+                      Content="Start" VerticalContentAlignment="Center"
+                      Command="{Binding Play.ConfirmSavePickCommand}" />
+            </StackPanel>
+          </Border>
+          <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="8,8,8,0">
+            <StackPanel Spacing="4">
+              <!-- "Create new" option at top -->
+              <Border Background="{Binding Play.SelectedSaveForHost, Converter={x:Static ObjectConverters.IsNull}, ConverterParameter=#222222|#1a1a1a}"
+                      CornerRadius="4" Padding="12,10" Cursor="Hand"
+                      PointerPressed="SavePickerNewSession_Click">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="+" FontSize="15" Foreground="#c8a052" VerticalAlignment="Center" />
+                  <TextBlock Text="Create new session" FontSize="12" Foreground="#c8a052" VerticalAlignment="Center" />
+                </StackPanel>
+              </Border>
+              <ItemsControl ItemsSource="{Binding Play.SavePickerSaves}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:SaveSummaryViewModel">
+                    <Border Background="#1a1a1a" CornerRadius="4" Padding="12,8" Margin="0,0,0,0"
+                            Cursor="Hand" Name="SavePickerItem"
+                            PointerPressed="SavePickerItem_Click">
+                      <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Name}"
+                                   FontSize="12" FontWeight="Medium" Foreground="#F0F0F0" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding LastModifiedText}"
+                                   FontSize="10" Foreground="#3a3a3a" VerticalAlignment="Center" />
+                        <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                    Orientation="Horizontal" Spacing="10" Margin="0,3,0,0">
+                          <TextBlock Text="{Binding PlayerCountText}" FontSize="10" Foreground="#6b6b6b" />
+                          <TextBlock Text="{Binding SessionTimeText}" FontSize="10" Foreground="#6b6b6b" />
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </ScrollViewer>
+        </DockPanel>
       </Border>
     </Border>
 
