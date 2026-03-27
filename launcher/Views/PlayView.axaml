@@ -21,9 +21,9 @@
           <!-- Left: version + status -->
           <StackPanel Grid.Column="0">
             <StackPanel Orientation="Horizontal" Spacing="0">
-              <TextBlock Text="0.2" FontSize="24" FontWeight="Light" Foreground="#F0F0F0"
+              <TextBlock Name="PlayVersion" FontSize="24" FontWeight="Light" Foreground="#F0F0F0"
                          VerticalAlignment="Bottom" />
-              <TextBlock Text="alpha" FontSize="12" Foreground="#6b6b6b"
+              <TextBlock Text="beta" FontSize="12" Foreground="#6b6b6b"
                          Margin="4,0,0,6" VerticalAlignment="Bottom" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,6,0,0">

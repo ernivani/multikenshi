@@ -12,6 +12,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Title = $"Kenshi Multi v{Program.Version}";
+        var navVer = this.FindControl<Avalonia.Controls.TextBlock>("NavVersion");
+        if (navVer != null) navVer.Text = $"v{Program.Version}";
 
         var joinOverlay = this.FindControl<Border>("JoinOverlay");
         if (joinOverlay != null)

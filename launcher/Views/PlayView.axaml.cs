@@ -20,6 +20,9 @@ public partial class PlayView : UserControl
     {
         InitializeComponent();
 
+        var playVer = this.FindControl<TextBlock>("PlayVersion");
+        if (playVer != null) playVer.Text = Program.Version;
+
         DataContextChanged += (_, _) =>
         {
             if (DataContext is PlayViewModel vm)
@@ -32,7 +35,6 @@ public partial class PlayView : UserControl
                 };
             }
         };
-
     }
 
     private void UpdateStatusDot(DllStatus status)
@@ -41,27 +43,27 @@ public partial class PlayView : UserControl
         {
             case DllStatus.Ready:
                 StatusDot.Fill = GreenBrush;
-                StatusLabel.Text = "injector ready";
+                StatusLabel.Text = "ready";
                 StatusLabel.Foreground = Text2Brush;
-                StatusSubLabel.Text = "nexus_mp.dll v0.2 loaded";
+                StatusSubLabel.Text = $"kenshi_multiplayer.dll v{Program.Version}";
                 break;
             case DllStatus.Outdated:
                 StatusDot.Fill = AccentBrush;
-                StatusLabel.Text = "DLL out of date";
+                StatusLabel.Text = "update available";
                 StatusLabel.Foreground = Text2Brush;
-                StatusSubLabel.Text = "nexus_mp.dll v0.1 found \u2014 v0.2 required";
+                StatusSubLabel.Text = "newer DLL available \u2014 downloads on connect";
                 break;
             case DllStatus.Missing:
                 StatusDot.Fill = RedBrush;
                 StatusLabel.Text = "DLL not found";
                 StatusLabel.Foreground = Text2Brush;
-                StatusSubLabel.Text = "nexus_mp.dll missing from Kenshi directory";
+                StatusSubLabel.Text = "downloads automatically on connect";
                 break;
             case DllStatus.Corrupted:
                 StatusDot.Fill = RedBrush;
                 StatusLabel.Text = "DLL corrupted";
                 StatusLabel.Foreground = RedBrush;
-                StatusSubLabel.Text = "DLL corrupted or wrong version — reinstall";
+                StatusSubLabel.Text = "will re-download on connect";
                 break;
         }
     }

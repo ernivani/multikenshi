@@ -59,7 +59,7 @@
                   Padding="16,14,16,12">
             <Grid ColumnDefinitions="*,Auto">
               <TextBlock Grid.Column="0" Text="Kenshi Multi" FontSize="13" FontWeight="SemiBold" Foreground="#F0F0F0" />
-              <TextBlock Grid.Column="1" Text="v0.2" FontSize="11" Foreground="#3a3a3a" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Name="NavVersion" FontSize="11" Foreground="#3a3a3a" VerticalAlignment="Center" />
             </Grid>
           </Border>
 
