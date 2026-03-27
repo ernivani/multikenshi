@@ -22,41 +22,8 @@ namespace crashlog {
         if (f) { fputs(buf, f); fclose(f); }
     }
 
-    // VEH: only catches real hardware exceptions (NOT C++ throws)
-    static LONG WINAPI vehHandler(EXCEPTION_POINTERS* ex) {
-        DWORD code = ex->ExceptionRecord->ExceptionCode;
-
-        // Only access violations, stack overflow, etc. — NOT 0xE06D7363
-        if (code != EXCEPTION_ACCESS_VIOLATION
-            && code != EXCEPTION_STACK_OVERFLOW
-            && code != EXCEPTION_ILLEGAL_INSTRUCTION
-            && code != EXCEPTION_INT_DIVIDE_BY_ZERO)
-            return EXCEPTION_CONTINUE_SEARCH;
-
-        uintptr_t moduleBase = (uintptr_t)GetModuleHandle(NULL);
-        char buf[2048];
-        int len = 0;
-        len += sprintf_s(buf + len, sizeof(buf) - len, "\n=== CRASH (VEH) ===\n");
-        len += sprintf_s(buf + len, sizeof(buf) - len, "Phase: %s\n", lastPhase);
-        len += sprintf_s(buf + len, sizeof(buf) - len, "Exception: 0x%08X\n", code);
-        len += sprintf_s(buf + len, sizeof(buf) - len, "RIP: 0x%llX (offset: 0x%llX)\n",
-                (unsigned long long)ex->ContextRecord->Rip,
-                (unsigned long long)(ex->ContextRecord->Rip - moduleBase));
-        len += sprintf_s(buf + len, sizeof(buf) - len, "RAX: 0x%llX  RBX: 0x%llX\n",
-                (unsigned long long)ex->ContextRecord->Rax,
-                (unsigned long long)ex->ContextRecord->Rbx);
-        len += sprintf_s(buf + len, sizeof(buf) - len, "RCX: 0x%llX  RDX: 0x%llX\n",
-                (unsigned long long)ex->ContextRecord->Rcx,
-                (unsigned long long)ex->ContextRecord->Rdx);
-        if (code == EXCEPTION_ACCESS_VIOLATION
-            && ex->ExceptionRecord->NumberParameters >= 2) {
-            len += sprintf_s(buf + len, sizeof(buf) - len, "AV %s address: 0x%llX\n",
-                    ex->ExceptionRecord->ExceptionInformation[0] ? "writing" : "reading",
-                    (unsigned long long)ex->ExceptionRecord->ExceptionInformation[1]);
-        }
-        writeToAll(buf);
-        return EXCEPTION_CONTINUE_SEARCH;
-    }
+    // VEH removed — it logs first-chance exceptions (including handled SEH)
+    // which causes massive spam. All crash detection is via UEF + terminate.
 
     // UEF: catches unhandled exceptions (including C++ throws that aren't caught)
     static LONG WINAPI uefHandler(EXCEPTION_POINTERS* ex) {
@@ -127,7 +94,6 @@ namespace crashlog {
         fopen_s(&f, tempLogPath, "w");
         if (f) { fprintf(f, "=== Kenshi MP Crash Log ===\n"); fclose(f); }
 
-        AddVectoredExceptionHandler(1, vehHandler);
         SetUnhandledExceptionFilter(uefHandler);
         std::set_terminate(terminateHandler);
         atexit(atexitHandler);
