@@ -153,25 +153,63 @@ public partial class PlayViewModel : ObservableObject
     {
         Changelog.Add(new ChangelogEntry
         {
-            Version = "0.2",
+            Version = "0.4.1",
             Date = "today",
             Lines = new List<ChangelogLine>
             {
-                new("new", "Peer-to-peer session system rewrite"),
-                new("new", "Steam identity passed to session handshake"),
-                new("fix", "Desync on squad movement across zone boundaries"),
-                new("fix", "DLL injection stability on Kenshi 1.0.55"),
+                new("new", "Auto-updater \u2014 launcher, DLL and mod download from GitHub"),
+                new("new", "Version tracking in title bar, settings, and handshake"),
+                new("new", "Launcher self-update with restart"),
+                new("fix", "Dev mode detection \u2014 uses local build files"),
+            }
+        });
+        Changelog.Add(new ChangelogEntry
+        {
+            Version = "0.4",
+            Date = "today",
+            Lines = new List<ChangelogLine>
+            {
+                new("new", "Host-authoritative speed control (/speed command)"),
+                new("new", "setPaused function discovery via displacement scan"),
+                new("new", "60Hz speed enforcement \u2014 blocks local speed button clicks"),
+                new("new", "Server heartbeat (ping/pong, 45s disconnect)"),
+                new("new", "Auto-reconnection (3 attempts) with error dialog"),
+                new("new", "Host change notification on disconnect"),
+                new("new", "Faction filtering via game-thread charFactions map"),
+                new("new", "Character name re-read \u2014 catches creation renames"),
+                new("new", "Copy button for server logs"),
+                new("new", "Player ID persists across reconnections"),
+                new("fix", "Merged ps+ws into single message \u2014 no protocol desync"),
+                new("fix", "Warmup delay \u2014 no sync during character creation"),
+                new("fix", "SEH-guarded map walks with 3x retry + 2s cache"),
+                new("fix", "Stale character filter disabled while game paused"),
+                new("fix", "Speed cap at 5 to prevent disconnect storms"),
+                new("fix", "Building stale timeout extended to 60s"),
+            }
+        });
+        Changelog.Add(new ChangelogEntry
+        {
+            Version = "0.3",
+            Date = "last week",
+            Lines = new List<ChangelogLine>
+            {
+                new("new", "JSON-over-TCP relay protocol"),
+                new("new", "Steam identity in handshake"),
+                new("new", "Pattern scanning for Steam binary offsets"),
+                new("new", "Runtime GameDataManagerMain discovery"),
+                new("new", "GUI console with timestamp logging"),
+                new("fix", "DLL injection via launcher (CreateRemoteThread)"),
             }
         });
         Changelog.Add(new ChangelogEntry
         {
             Version = "0.1",
-            Date = "3w ago",
+            Date = "2 weeks ago",
             Lines = new List<ChangelogLine>
             {
                 new("new", "Initial DLL injector and hook system"),
                 new("new", "Host / join flow with direct IP"),
-                new("wip", "Voice chat \u2014 not yet functional"),
+                new("new", "Character and building update hooks"),
             }
         });
     }
