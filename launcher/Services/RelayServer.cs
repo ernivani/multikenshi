@@ -7,41 +7,92 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using KenshiLauncher.Models;
 
 namespace KenshiLauncher.Services;
 
-public record ClientInfo(int Id, string IP, DateTime ConnectedAt);
+public class ConnectedPlayer
+{
+    public int Id { get; set; }
+    public string SteamName { get; set; } = "";
+    public string SteamId { get; set; } = "";
+    public string IP { get; set; } = "";
+    public bool IsHost { get; set; }
+    public DateTime ConnectedAt { get; set; }
+    public List<CharacterState> Squad { get; set; } = new();
+}
+
+public class CharacterState
+{
+    [JsonPropertyName("n")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("x")]
+    public float X { get; set; }
+
+    [JsonPropertyName("y")]
+    public float Y { get; set; }
+
+    [JsonPropertyName("z")]
+    public float Z { get; set; }
+
+    [JsonPropertyName("fn")]
+    public string Faction { get; set; } = "";
+}
+
+public class BuildingState
+{
+    [JsonPropertyName("n")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("x")]
+    public float X { get; set; }
+
+    [JsonPropertyName("y")]
+    public float Y { get; set; }
+
+    [JsonPropertyName("z")]
+    public float Z { get; set; }
+
+    [JsonPropertyName("cond")]
+    public float Condition { get; set; }
+}
 
 public class RelayServer
 {
-    private static readonly string[] Factions =
-    {
-        "204-gamedata.base", "10-multiplayr.mod", "12-multiplayr.mod"
-    };
-
     private TcpListener? _listener;
     private CancellationTokenSource? _cts;
-    private readonly List<TcpClient> _clients = new();
-    private readonly Dictionary<int, TcpClient> _clientMap = new();
+    private readonly List<TcpClient> _tcpClients = new();
+    private readonly Dictionary<int, TcpClient> _tcpMap = new();
     private readonly object _lock = new();
-    private int _clientIdCounter = 1;
+    private int _nextId = 1;
 
+    // World state (server-authoritative)
+    private readonly Dictionary<int, ConnectedPlayer> _players = new();
+    private List<CharacterState> _hostNpcs = new();
+    private List<BuildingState> _hostBuildings = new();
     private float _speed = 1.0f;
-    private (float x, float y, float z) _plr1 = (-5139.11f, 158.019f, 345.631f);
-    private (float x, float y, float z) _plr2 = (-5139.11f, 158.019f, 345.631f);
+    private int _hostId = -1;
+
+    private static readonly JsonSerializerOptions _jsonOpts = new()
+    {
+        PropertyNamingPolicy = null,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
 
     public bool IsRunning { get; private set; }
     public Action<string>? Log { get; set; }
     public Action? OnManualSaveRequested { get; set; }
-    public ObservableCollection<ClientInfo> Clients { get; } = new();
+    public ObservableCollection<ConnectedPlayer> Players { get; } = new();
     public ObservableCollection<string> ServerLog { get; } = new();
 
     public int PlayerCount
     {
-        get { lock (_lock) return _clients.Count; }
+        get { lock (_lock) return _players.Count; }
     }
 
     public void Start(int port, bool restoreFromSave = false)
@@ -50,15 +101,21 @@ public class RelayServer
 
         if (!restoreFromSave)
         {
-            _plr1 = (-5139.11f, 158.019f, 345.631f);
-            _plr2 = (-5139.11f, 158.019f, 345.631f);
             _speed = 1.0f;
         }
-        _clientIdCounter = 1;
+        _nextId = 1;
+        _hostId = -1;
+
+        lock (_lock)
+        {
+            _players.Clear();
+            _hostNpcs.Clear();
+            _hostBuildings.Clear();
+        }
 
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            Clients.Clear();
+            Players.Clear();
             ServerLog.Clear();
         });
 
@@ -70,19 +127,32 @@ public class RelayServer
 
     public GameStateData CaptureState()
     {
-        return new GameStateData
+        lock (_lock)
         {
-            Speed = _speed,
-            Player1Position = new Vec3(_plr1.x, _plr1.y, _plr1.z),
-            Player2Position = new Vec3(_plr2.x, _plr2.y, _plr2.z)
-        };
+            var state = new GameStateData { Speed = _speed };
+
+            // Capture all players' squads
+            foreach (var kvp in _players)
+            {
+                state.PlayerSquads.Add(new PlayerSquadSnapshot
+                {
+                    PlayerId = kvp.Value.Id,
+                    SteamName = kvp.Value.SteamName,
+                    SteamId = kvp.Value.SteamId,
+                    Squad = kvp.Value.Squad.Select(c => new CharacterSnapshot
+                    {
+                        Name = c.Name, X = c.X, Y = c.Y, Z = c.Z, Faction = c.Faction
+                    }).ToList()
+                });
+            }
+
+            return state;
+        }
     }
 
     public void RestoreState(GameStateData state)
     {
         _speed = state.Speed;
-        _plr1 = (state.Player1Position.X, state.Player1Position.Y, state.Player1Position.Z);
-        _plr2 = (state.Player2Position.X, state.Player2Position.Y, state.Player2Position.Z);
     }
 
     public void Stop()
@@ -96,15 +166,19 @@ public class RelayServer
 
         lock (_lock)
         {
-            foreach (var c in _clients)
+            foreach (var c in _tcpClients)
             {
                 try { c.Close(); } catch { }
             }
-            _clients.Clear();
-            _clientMap.Clear();
+            _tcpClients.Clear();
+            _tcpMap.Clear();
+            _players.Clear();
+            _hostNpcs.Clear();
+            _hostBuildings.Clear();
+            _hostId = -1;
         }
 
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => Clients.Clear());
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => Players.Clear());
         PostLog("Server stopped.");
     }
 
@@ -147,131 +221,253 @@ public class RelayServer
 
     private async Task HandleClient(TcpClient client, CancellationToken ct)
     {
-        int clientId;
+        int clientId = -1;
         string clientIP = "unknown";
-        lock (_lock)
-        {
-            _clients.Add(client);
-            clientId = _clientIdCounter++;
-            if (_clientIdCounter >= Factions.Length)
-                _clientIdCounter = 1;
-            _clientMap[clientId] = client;
-
-            var ep = client.Client.RemoteEndPoint as IPEndPoint;
-            if (ep != null) clientIP = ep.Address.ToString();
-        }
-
-        var info = new ClientInfo(clientId, clientIP, DateTime.Now);
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => Clients.Add(info));
-        PostLog($"Client {clientId} connected from {clientIP}.");
 
         try
         {
+            var ep = client.Client.RemoteEndPoint as IPEndPoint;
+            if (ep != null) clientIP = ep.Address.ToString();
+
             var stream = client.GetStream();
-
-            // Send initial speed
-            var initMsg = $"1\n{_speed.ToString(CultureInfo.InvariantCulture)}\n";
-            var initBytes = Encoding.ASCII.GetBytes(initMsg);
-            await stream.WriteAsync(initBytes, ct);
-
-            var buffer = new byte[1024];
             var accumulator = new StringBuilder();
+            var buffer = new byte[65536];
 
+            // Step 1: Read handshake
+            var handshakeOpt = await ReadJsonMessage(stream, accumulator, buffer, ct);
+            if (handshakeOpt == null)
+            {
+                PostLog($"No handshake from {clientIP}, disconnecting.");
+                client.Close();
+                return;
+            }
+            var handshake = handshakeOpt.Value;
+            if (handshake.GetProperty("t").GetString() != "hello")
+            {
+                PostLog($"Bad handshake from {clientIP}, disconnecting.");
+                client.Close();
+                return;
+            }
+
+            var steamName = handshake.TryGetProperty("steamName", out var sn) ? sn.GetString() ?? "" : "";
+            var steamId = handshake.TryGetProperty("steamId", out var si) ? si.GetString() ?? "" : "";
+            var version = handshake.TryGetProperty("v", out var v) ? v.GetString() ?? "" : "";
+
+            // Step 2: Assign ID and host
+            bool isHost;
+            lock (_lock)
+            {
+                clientId = _nextId++;
+                isHost = _hostId == -1;
+                if (isHost) _hostId = clientId;
+
+                _tcpClients.Add(client);
+                _tcpMap[clientId] = client;
+
+                var player = new ConnectedPlayer
+                {
+                    Id = clientId,
+                    SteamName = steamName,
+                    SteamId = steamId,
+                    IP = clientIP,
+                    IsHost = isHost,
+                    ConnectedAt = DateTime.Now
+                };
+                _players[clientId] = player;
+
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => Players.Add(player));
+            }
+
+            PostLog($"Player {clientId} '{steamName}' connected from {clientIP} (v{version}){(isHost ? " [HOST]" : "")}.");
+
+            // Step 3: Send welcome
+            var welcome = new Dictionary<string, object>
+            {
+                ["t"] = "welcome",
+                ["id"] = clientId,
+                ["isHost"] = isHost
+            };
+            await SendJson(stream, welcome, ct);
+
+            // Step 4: Main relay loop
             while (!ct.IsCancellationRequested && client.Connected)
             {
-                int bytesRead;
-                try
+                var msg = await ReadJsonMessage(stream, accumulator, buffer, ct);
+                if (msg == null) break;
+
+                var type = msg.Value.GetProperty("t").GetString();
+
+                if (type == "ps")
                 {
-                    bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, ct);
-                }
-                catch { break; }
-
-                if (bytesRead <= 0) break;
-
-                accumulator.Append(Encoding.ASCII.GetString(buffer, 0, bytesRead));
-
-                // Parse key-value pairs from accumulated data
-                var data = accumulator.ToString();
-                var lines = data.Split('\n');
-
-                // Process complete pairs (need at least key + value)
-                int processed = 0;
-                for (int i = 0; i + 1 < lines.Length; i += 2)
-                {
-                    var key = lines[i].Trim();
-                    var value = lines[i + 1].Trim();
-
-                    if (key == "2" && clientId == 1 && value != "0,0,0")
-                        _plr1 = ParseVector(value);
-                    else if (key == "3" && clientId == 2 && value != "0,0,0")
-                        _plr2 = ParseVector(value);
-                    else if (key == "1")
+                    // Player state update
+                    lock (_lock)
                     {
-                        if (float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var s))
-                            _speed = s;
+                        if (_players.TryGetValue(clientId, out var p))
+                        {
+                            if (msg.Value.TryGetProperty("speed", out var sp))
+                            {
+                                if (sp.TryGetSingle(out var spVal))
+                                    _speed = spVal;
+                            }
+
+                            if (msg.Value.TryGetProperty("squad", out var sq))
+                            {
+                                p.Squad = JsonSerializer.Deserialize<List<CharacterState>>(sq.GetRawText(), _jsonOpts)
+                                          ?? new List<CharacterState>();
+                            }
+                        }
                     }
-                    processed = i + 2;
+                }
+                else if (type == "ws")
+                {
+                    // World state from host only
+                    lock (_lock)
+                    {
+                        if (clientId == _hostId)
+                        {
+                            if (msg.Value.TryGetProperty("npcs", out var npcs))
+                                _hostNpcs = JsonSerializer.Deserialize<List<CharacterState>>(npcs.GetRawText(), _jsonOpts)
+                                            ?? new List<CharacterState>();
+
+                            if (msg.Value.TryGetProperty("buildings", out var blds))
+                                _hostBuildings = JsonSerializer.Deserialize<List<BuildingState>>(blds.GetRawText(), _jsonOpts)
+                                                 ?? new List<BuildingState>();
+                        }
+                    }
                 }
 
-                // Keep any unparsed remainder
-                if (processed > 0 && processed < lines.Length)
-                {
-                    accumulator.Clear();
-                    accumulator.Append(lines[processed]);
-                }
-                else if (processed > 0)
-                {
-                    accumulator.Clear();
-                }
-
-                // Build reply
-                var reply = new StringBuilder();
-                reply.Append($"0\n{Factions[clientId]}\n");
-                reply.Append($"1\n{_speed.ToString(CultureInfo.InvariantCulture)}\n");
-                reply.Append($"2\n{FormatVector(_plr1)}\n");
-                reply.Append($"3\n{FormatVector(_plr2)}\n");
-
-                var replyBytes = Encoding.ASCII.GetBytes(reply.ToString());
-                try
-                {
-                    await stream.WriteAsync(replyBytes, ct);
-                }
-                catch { break; }
+                // Build and send world update to this client
+                var wu = BuildWorldUpdate(clientId);
+                await SendJson(stream, wu, ct);
             }
         }
+        catch (OperationCanceledException) { }
         catch (Exception) { }
         finally
         {
+            string disconnectedName;
             lock (_lock)
             {
-                _clients.Remove(client);
-                _clientMap.Remove(clientId);
+                _tcpClients.Remove(client);
+                if (clientId > 0)
+                {
+                    _tcpMap.Remove(clientId);
+                    _players.TryGetValue(clientId, out var removedPlayer);
+                    disconnectedName = removedPlayer?.SteamName ?? $"#{clientId}";
+                    _players.Remove(clientId);
+
+                    // If host disconnected, reassign
+                    if (clientId == _hostId)
+                    {
+                        _hostId = -1;
+                        if (_players.Count > 0)
+                        {
+                            var newHost = _players.Values.First();
+                            _hostId = newHost.Id;
+                            newHost.IsHost = true;
+                            PostLog($"Host reassigned to player {newHost.Id} '{newHost.SteamName}'.");
+                        }
+                    }
+                }
+                else
+                {
+                    disconnectedName = "unknown";
+                }
             }
+
             try { client.Close(); } catch { }
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+
+            if (clientId > 0)
             {
-                var existing = Clients.FirstOrDefault(c => c.Id == clientId);
-                if (existing != null) Clients.Remove(existing);
-            });
-            PostLog($"Client {clientId} disconnected.");
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    var existing = Players.FirstOrDefault(p => p.Id == clientId);
+                    if (existing != null) Players.Remove(existing);
+                });
+                PostLog($"Player {clientId} '{disconnectedName}' disconnected.");
+            }
         }
     }
 
-    private static (float x, float y, float z) ParseVector(string s)
+    private Dictionary<string, object> BuildWorldUpdate(int excludeClientId)
     {
-        var parts = s.Split(',');
-        if (parts.Length >= 3 &&
-            float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var x) &&
-            float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var y) &&
-            float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var z))
+        lock (_lock)
         {
-            return (x, y, z);
+            var playerList = new List<object>();
+            foreach (var kvp in _players)
+            {
+                if (kvp.Key == excludeClientId) continue;
+                var p = kvp.Value;
+                playerList.Add(new Dictionary<string, object>
+                {
+                    ["id"] = p.Id,
+                    ["sn"] = p.SteamName,
+                    ["sid"] = p.SteamId,
+                    ["host"] = p.IsHost,
+                    ["squad"] = p.Squad
+                });
+            }
+
+            var wu = new Dictionary<string, object>
+            {
+                ["t"] = "wu",
+                ["speed"] = _speed,
+                ["players"] = playerList,
+                ["npcs"] = _hostNpcs,
+                ["buildings"] = _hostBuildings
+            };
+
+            return wu;
         }
-        return (0, 0, 0);
     }
 
-    private static string FormatVector((float x, float y, float z) v)
-        => $"{v.x.ToString(CultureInfo.InvariantCulture)},{v.y.ToString(CultureInfo.InvariantCulture)},{v.z.ToString(CultureInfo.InvariantCulture)}";
+    private static async Task<JsonElement?> ReadJsonMessage(
+        NetworkStream stream, StringBuilder accumulator, byte[] buffer, CancellationToken ct)
+    {
+        while (true)
+        {
+            // Check if we already have a complete message in the accumulator
+            var data = accumulator.ToString();
+            int newlineIdx = data.IndexOf('\n');
+            if (newlineIdx >= 0)
+            {
+                var line = data.Substring(0, newlineIdx).Trim();
+                accumulator.Remove(0, newlineIdx + 1);
+
+                if (line.Length == 0) continue; // skip empty lines
+
+                try
+                {
+                    return JsonSerializer.Deserialize<JsonElement>(line);
+                }
+                catch
+                {
+                    continue; // skip malformed JSON
+                }
+            }
+
+            // Need more data
+            int bytesRead;
+            try
+            {
+                bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, ct);
+            }
+            catch
+            {
+                return null;
+            }
+
+            if (bytesRead <= 0) return null;
+            accumulator.Append(Encoding.UTF8.GetString(buffer, 0, bytesRead));
+        }
+    }
+
+    private static async Task SendJson(NetworkStream stream, object obj, CancellationToken ct)
+    {
+        var json = JsonSerializer.Serialize(obj) + "\n";
+        var bytes = Encoding.UTF8.GetBytes(json);
+        await stream.WriteAsync(bytes, 0, bytes.Length, ct);
+    }
 
     private void PostLog(string message)
     {
@@ -308,17 +504,64 @@ public class RelayServer
                 if (int.TryParse(arg, out var kickId))
                 {
                     TcpClient? target;
-                    lock (_lock) { _clientMap.TryGetValue(kickId, out target); }
+                    string kickName;
+                    lock (_lock)
+                    {
+                        _tcpMap.TryGetValue(kickId, out target);
+                        _players.TryGetValue(kickId, out var kickPlayer);
+                        kickName = kickPlayer?.SteamName ?? $"#{kickId}";
+                    }
                     if (target != null)
                     {
                         try { target.Close(); } catch { }
-                        PostLog($"Kicked client {kickId}.");
+                        PostLog($"Kicked player {kickId} '{kickName}'.");
                     }
                     else
-                        PostLog($"Client {kickId} not found.");
+                        PostLog($"Player {kickId} not found.");
                 }
                 else
                     PostLog("Usage: /kick <id>");
+                break;
+
+            case "/players":
+                lock (_lock)
+                {
+                    if (_players.Count == 0)
+                    {
+                        PostLog("No players connected.");
+                    }
+                    else
+                    {
+                        foreach (var p in _players.Values)
+                        {
+                            var hostTag = p.IsHost ? " [HOST]" : "";
+                            var squadCount = p.Squad.Count;
+                            PostLog($"  #{p.Id} '{p.SteamName}' ({p.SteamId}) - {squadCount} squad members{hostTag}");
+                        }
+                    }
+                }
+                break;
+
+            case "/host":
+                if (int.TryParse(arg, out var newHostId))
+                {
+                    lock (_lock)
+                    {
+                        if (_players.TryGetValue(newHostId, out var newHost))
+                        {
+                            // Remove old host flag
+                            foreach (var p in _players.Values)
+                                p.IsHost = false;
+                            newHost.IsHost = true;
+                            _hostId = newHostId;
+                            PostLog($"Host reassigned to player {newHostId} '{newHost.SteamName}'.");
+                        }
+                        else
+                            PostLog($"Player {newHostId} not found.");
+                    }
+                }
+                else
+                    PostLog("Usage: /host <id>");
                 break;
 
             case "/save":
@@ -331,7 +574,7 @@ public class RelayServer
                 break;
 
             case "/help":
-                PostLog("Commands: /speed <value>, /kick <id>, /save, /stop, /help");
+                PostLog("Commands: /speed <val>, /kick <id>, /host <id>, /players, /save, /stop, /help");
                 break;
 
             default:

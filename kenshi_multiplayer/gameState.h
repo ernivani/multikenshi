@@ -3,6 +3,8 @@
 #include <map>
 #include <queue>
 #include "structs.h"
+#include "json.hpp"
+
 namespace gameState {
     extern uintptr_t moduleBase;
     extern structs::GameWorldClass* gameWorld;
@@ -17,6 +19,7 @@ namespace gameState {
     };
 
     extern std::map<structs::AnimationClassHuman*, std::pair<std::string, long long>> chars;
+    extern std::map<std::string, structs::AnimationClassHuman*> charsByName;
     extern std::map<structs::Building*, std::pair<std::string, long long>> builds;
     extern std::map<std::string, structs::GameData*> DB;
     extern int squadSpawnBypassAmm;
@@ -32,4 +35,14 @@ namespace gameState {
     extern structs::AnimationClassHuman* player;
     extern structs::AnimationClassHuman* otherplayers;
     void scanHeap();
+
+    // New JSON-based entity collection
+    float getSpeedFloat();
+    nlohmann::json getSquadJson();
+    nlohmann::json getNpcJson();
+    nlohmann::json getBuildingJson();
+    std::string getPlayerFaction();
+
+    // New JSON-based world update application
+    void applyWorldUpdate(const nlohmann::json& wu);
 }

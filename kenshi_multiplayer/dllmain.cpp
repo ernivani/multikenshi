@@ -72,6 +72,8 @@ void dllmain() {
     crashlog::phase("read_config");
     char serverIP[256] = "127.0.0.1";
     int serverPort = DEFAULT_PORT;
+    char steamName[256] = "Player";
+    char steamId[256] = "";
     {
         char iniPath[MAX_PATH];
         GetModuleFileNameA(NULL, iniPath, MAX_PATH);
@@ -84,9 +86,16 @@ void dllmain() {
                                      serverIP, sizeof(serverIP), iniPath);
             serverPort = GetPrivateProfileIntA("Server", "Port",
                                                DEFAULT_PORT, iniPath);
+            GetPrivateProfileStringA("Identity", "SteamName", "Player",
+                                     steamName, sizeof(steamName), iniPath);
+            GetPrivateProfileStringA("Identity", "SteamId", "",
+                                     steamId, sizeof(steamId), iniPath);
         }
     }
     std::cout << "Config: " << serverIP << ":" << serverPort << std::endl;
+    std::cout << "Identity: " << steamName << " (" << steamId << ")" << std::endl;
+    network::steamName = steamName;
+    network::steamId = steamId;
 
     // 5. Runtime discovery of GameDataManagerMain if pattern scan didn't find it
     if (needRuntimeDiscovery) {

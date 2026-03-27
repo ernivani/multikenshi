@@ -3,9 +3,13 @@
 #include "gameState.h"
 #include "gameStateSetters.h"
 #include "gameStateGetters.h"
+#include "network.h"
 #include "utils.h"
+#include "json.hpp"
 #include <string>
 #include <iostream>
+
+using json = nlohmann::json;
 
 namespace gameState {
     extern structs::GameWorldClass* gameWorld;
@@ -54,17 +58,77 @@ namespace gameState {
         if ("Player 1" == getOtherCharName()) {
             otherplayers->movement->position->fromString(data);
         }
-        else {
-            //player->movement->position->fromString(data);
-        }
     }
     void setPlayer2(const std::string& data) {
         if (!otherplayers)return;
         if ("Player 2" == getOtherCharName()) {
             otherplayers->movement->position->fromString(data);
         }
-        else {
-            //player->movement->position->fromString(data);
+    }
+
+    // ---------- New: Apply world update from server JSON ----------
+
+    // SEH-safe position writer
+    __declspec(nothrow) static bool safeSetPosition(structs::AnimationClassHuman* anim, float x, float y, float z) {
+        __try {
+            if (!anim || !anim->movement || !anim->movement->position) return false;
+            anim->movement->position->x = x;
+            anim->movement->position->y = y;
+            anim->movement->position->z = z;
+            return true;
         }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
+    }
+
+    static void applySpeedFromWU(float speed) {
+        if (!gameWorld) return;
+        setSpeed(std::to_string(speed));
+    }
+
+    static void applyCharacterPosition(const json& charData) {
+        std::string name = charData.value("n", "");
+        if (name.empty()) return;
+
+        float x = charData.value("x", 0.0f);
+        float y = charData.value("y", 0.0f);
+        float z = charData.value("z", 0.0f);
+        if (x == 0.0f && y == 0.0f && z == 0.0f) return;
+
+        auto it = charsByName.find(name);
+        if (it != charsByName.end()) {
+            safeSetPosition(it->second, x, y, z);
+        }
+    }
+
+    void applyWorldUpdate(const json& wu) {
+        // Apply speed
+        if (wu.contains("speed")) {
+            float speed = wu["speed"].get<float>();
+            applySpeedFromWU(speed);
+        }
+
+        // Apply other players' squads
+        if (wu.contains("players")) {
+            for (auto it = wu["players"].begin(); it != wu["players"].end(); ++it) {
+                const json& playerData = *it;
+                if (playerData.contains("squad")) {
+                    for (auto sq = playerData["squad"].begin(); sq != playerData["squad"].end(); ++sq) {
+                        applyCharacterPosition(*sq);
+                    }
+                }
+            }
+        }
+
+        // Apply NPCs (from host)
+        if (wu.contains("npcs")) {
+            for (auto it = wu["npcs"].begin(); it != wu["npcs"].end(); ++it) {
+                applyCharacterPosition(*it);
+            }
+        }
+
+        // Buildings: position is readonly in Kenshi, so we skip position updates
+        // but could update condition in the future
     }
 }

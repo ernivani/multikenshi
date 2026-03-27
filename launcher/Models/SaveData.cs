@@ -26,6 +26,24 @@ public class GameStateData
     public float Speed { get; set; } = 1.0f;
     public Vec3 Player1Position { get; set; } = new(-5139.11f, 158.019f, 345.631f);
     public Vec3 Player2Position { get; set; } = new(-5139.11f, 158.019f, 345.631f);
+    public List<PlayerSquadSnapshot> PlayerSquads { get; set; } = new();
+}
+
+public class PlayerSquadSnapshot
+{
+    public int PlayerId { get; set; }
+    public string SteamName { get; set; } = "";
+    public string SteamId { get; set; } = "";
+    public List<CharacterSnapshot> Squad { get; set; } = new();
+}
+
+public class CharacterSnapshot
+{
+    public string Name { get; set; } = "";
+    public float X { get; set; }
+    public float Y { get; set; }
+    public float Z { get; set; }
+    public string Faction { get; set; } = "";
 }
 
 public class Vec3
@@ -55,4 +73,5 @@ public class PlayerRecord
     public DateTime LastSeen { get; set; } = DateTime.UtcNow;
     public TimeSpan TotalPlaytime { get; set; } = TimeSpan.Zero;
     public bool IsOnline { get; set; }
+    public List<CharacterSnapshot> Squad { get; set; } = new();
 }

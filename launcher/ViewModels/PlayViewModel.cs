@@ -224,7 +224,8 @@ public partial class PlayViewModel : ObservableObject
         {
             await Task.Run(async () =>
             {
-                GameConfigWriter.Write(_config.KenshiPath, JoinIP, JoinPort);
+                var (sName, sId) = SteamIdentity.GetCurrentUser();
+                GameConfigWriter.Write(_config.KenshiPath, JoinIP, JoinPort, sName, sId);
 
                 var process = ProcessLauncher.FindKenshiProcess();
                 int pid;

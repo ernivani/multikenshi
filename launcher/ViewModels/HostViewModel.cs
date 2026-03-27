@@ -9,6 +9,59 @@ using KenshiLauncher.Services;
 
 namespace KenshiLauncher.ViewModels;
 
+public partial class SquadMemberViewModel : ObservableObject
+{
+    [ObservableProperty]
+    private string _name = "";
+
+    [ObservableProperty]
+    private string _position = "";
+
+    [ObservableProperty]
+    private string _faction = "";
+}
+
+public partial class PlayerCardViewModel : ObservableObject
+{
+    [ObservableProperty]
+    private int _playerId;
+
+    [ObservableProperty]
+    private string _steamName = "";
+
+    [ObservableProperty]
+    private string _steamId = "";
+
+    [ObservableProperty]
+    private bool _isHost;
+
+    [ObservableProperty]
+    private string _faction = "";
+
+    [ObservableProperty]
+    private string _position = "";
+
+    [ObservableProperty]
+    private int _squadCount;
+
+    [ObservableProperty]
+    private bool _isExpanded;
+
+    public ObservableCollection<SquadMemberViewModel> SquadMembers { get; } = new();
+
+    public string HeaderText => IsHost ? $"#{PlayerId} {SteamName} (Host)" : $"#{PlayerId} {SteamName}";
+
+    partial void OnPlayerIdChanged(int value) => OnPropertyChanged(nameof(HeaderText));
+    partial void OnSteamNameChanged(string value) => OnPropertyChanged(nameof(HeaderText));
+    partial void OnIsHostChanged(bool value) => OnPropertyChanged(nameof(HeaderText));
+
+    [RelayCommand]
+    private void ToggleExpand()
+    {
+        IsExpanded = !IsExpanded;
+    }
+}
+
 public partial class PlayerRecordViewModel : ObservableObject
 {
     public string DisplayName { get; }
@@ -84,9 +137,10 @@ public partial class HostViewModel : ObservableObject
     [ObservableProperty]
     private string _activeSaveFolderName = "";
 
-    public ObservableCollection<ClientInfo> Clients => _server.Clients;
+    public ObservableCollection<ConnectedPlayer> ConnectedPlayers => _server.Players;
     public ObservableCollection<string> ServerLog => _server.ServerLog;
     public ObservableCollection<PlayerRecordViewModel> PlayerRecords { get; } = new();
+    public ObservableCollection<PlayerCardViewModel> PlayerCards { get; } = new();
 
     public HostViewModel(ConfigManager config, RelayServer server, MainViewModel main, SaveManager saveManager)
     {
@@ -101,15 +155,64 @@ public partial class HostViewModel : ObservableObject
             Avalonia.Threading.Dispatcher.UIThread.Post(PerformSave);
         };
 
-        // Poll server status periodically
+        // Poll server status and update player cards periodically
         _statusTimer = new Timer(_ =>
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
                 IsRunning = _server.IsRunning;
                 PlayerCount = _server.PlayerCount;
+                RefreshPlayerCards();
             });
         }, null, 0, 1000);
+    }
+
+    private void RefreshPlayerCards()
+    {
+        var serverPlayers = ConnectedPlayers.ToList();
+
+        // Remove cards for players no longer connected
+        for (int i = PlayerCards.Count - 1; i >= 0; i--)
+        {
+            if (!serverPlayers.Any(p => p.Id == PlayerCards[i].PlayerId))
+                PlayerCards.RemoveAt(i);
+        }
+
+        // Add or update cards
+        foreach (var sp in serverPlayers)
+        {
+            var existing = PlayerCards.FirstOrDefault(c => c.PlayerId == sp.Id);
+            if (existing == null)
+            {
+                existing = new PlayerCardViewModel();
+                PlayerCards.Add(existing);
+            }
+
+            existing.PlayerId = sp.Id;
+            existing.SteamName = sp.SteamName;
+            existing.SteamId = sp.SteamId;
+            existing.IsHost = sp.IsHost;
+            existing.SquadCount = sp.Squad.Count;
+
+            if (sp.Squad.Count > 0)
+            {
+                var leader = sp.Squad[0];
+                existing.Faction = leader.Faction;
+                existing.Position = $"{leader.X:F0}, {leader.Y:F0}, {leader.Z:F0}";
+            }
+
+            // Update squad members
+            existing.SquadMembers.Clear();
+            foreach (var c in sp.Squad)
+            {
+                existing.SquadMembers.Add(new SquadMemberViewModel
+                {
+                    Name = c.Name,
+                    Position = $"{c.X:F1}, {c.Y:F1}, {c.Z:F1}",
+                    Faction = c.Faction
+                });
+            }
+        }
     }
 
     public void LoadSave(string folderName)
@@ -134,10 +237,9 @@ public partial class HostViewModel : ObservableObject
         PlayerRecords.Clear();
         if (_activeSaveData == null) return;
 
-        // Mark all as offline, then mark connected ones online
         foreach (var p in _activeSaveData.Players)
         {
-            p.IsOnline = Clients.Any(c => c.Id == p.SlotId);
+            p.IsOnline = ConnectedPlayers.Any(c => c.Id == p.SlotId);
             PlayerRecords.Add(new PlayerRecordViewModel(p));
         }
     }
@@ -146,32 +248,45 @@ public partial class HostViewModel : ObservableObject
     {
         if (string.IsNullOrEmpty(ActiveSaveFolderName) || _activeSaveData == null) return;
 
-        // Capture current game state
         _activeSaveData.GameState = _server.CaptureState();
         _activeSaveData.TotalSessionTime += DateTime.UtcNow - _sessionStartUtc;
-        _sessionStartUtc = DateTime.UtcNow; // reset for next interval
+        _sessionStartUtc = DateTime.UtcNow;
 
-        // Update online status of tracked players from connected clients
         foreach (var player in _activeSaveData.Players)
         {
-            player.IsOnline = Clients.Any(c => c.Id == player.SlotId);
+            player.IsOnline = ConnectedPlayers.Any(c => c.Id == player.SlotId);
             if (player.IsOnline)
                 player.LastSeen = DateTime.UtcNow;
         }
 
-        // Add new clients not yet in save
-        foreach (var client in Clients)
+        foreach (var cp in ConnectedPlayers)
         {
-            if (!_activeSaveData.Players.Any(p => p.SlotId == client.Id))
+            if (!_activeSaveData.Players.Any(p => p.SlotId == cp.Id))
             {
                 _activeSaveData.Players.Add(new PlayerRecord
                 {
-                    SlotId = client.Id,
-                    LastIP = client.IP,
-                    FirstSeen = client.ConnectedAt.ToUniversalTime(),
+                    SlotId = cp.Id,
+                    Name = cp.SteamName,
+                    SteamId = cp.SteamId,
+                    LastIP = cp.IP,
+                    FirstSeen = cp.ConnectedAt.ToUniversalTime(),
                     LastSeen = DateTime.UtcNow,
-                    IsOnline = true
+                    IsOnline = true,
+                    Squad = cp.Squad.Select(c => new CharacterSnapshot
+                    {
+                        Name = c.Name, X = c.X, Y = c.Y, Z = c.Z, Faction = c.Faction
+                    }).ToList()
                 });
+            }
+            else
+            {
+                var existing = _activeSaveData.Players.First(p => p.SlotId == cp.Id);
+                if (!string.IsNullOrEmpty(cp.SteamName)) existing.Name = cp.SteamName;
+                if (!string.IsNullOrEmpty(cp.SteamId)) existing.SteamId = cp.SteamId;
+                existing.Squad = cp.Squad.Select(c => new CharacterSnapshot
+                {
+                    Name = c.Name, X = c.X, Y = c.Y, Z = c.Z, Faction = c.Faction
+                }).ToList();
             }
         }
 
@@ -185,7 +300,6 @@ public partial class HostViewModel : ObservableObject
     {
         if (_server.IsRunning)
         {
-            // Final save before stopping
             PerformSave();
             _autoSaveTimer?.Dispose();
             _autoSaveTimer = null;
@@ -209,7 +323,6 @@ public partial class HostViewModel : ObservableObject
             IsRunning = true;
             _sessionStartUtc = DateTime.UtcNow;
 
-            // Start auto-save timer (30s)
             _autoSaveTimer = new Timer(_ =>
             {
                 Avalonia.Threading.Dispatcher.UIThread.Post(PerformSave);

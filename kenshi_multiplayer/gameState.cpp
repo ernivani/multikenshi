@@ -61,6 +61,7 @@ namespace gameState {
         return data;
     }
     std::map<structs::AnimationClassHuman*, std::pair<std::string, long long>> chars;
+    std::map<std::string, structs::AnimationClassHuman*> charsByName;
     std::map<structs::Building*, std::pair<std::string, long long>> builds;
     structs::AnimationClassHuman* player = 0;
     structs::AnimationClassHuman* otherplayers = 0;
@@ -81,9 +82,14 @@ namespace gameState {
         if (chars.find((structs::AnimationClassHuman*)ch) == chars.end()) {
             const char* chosenName = ch->getName();
             if (!chosenName || !utils::isValidName(chosenName)) return;
-            chars[(structs::AnimationClassHuman*)ch] = std::make_pair(std::string(chosenName), 0);
+            std::string nameStr(chosenName);
+            chars[(structs::AnimationClassHuman*)ch] = std::make_pair(nameStr, 0);
+            charsByName[nameStr] = num;
             if (strcmp(chosenName, getOwnCharName().c_str()) == 0) player = num;
             if (strcmp(chosenName, getOtherCharName().c_str()) == 0) otherplayers = num;
+        } else {
+            // Update charsByName mapping (pointer may have changed)
+            charsByName[chars[(structs::AnimationClassHuman*)ch].first] = num;
         }
         chars[(structs::AnimationClassHuman*)ch].second = GetTickCount64();
     }

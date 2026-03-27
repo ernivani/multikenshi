@@ -75,6 +75,15 @@ public partial class HostWindow : Window
         Close();
     }
 
+    private void PlayerCard_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is Avalonia.Controls.Border border && border.Tag is PlayerCardViewModel card)
+        {
+            card.ToggleExpandCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
     private void CommandInput_KeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter && DataContext is HostViewModel vm)

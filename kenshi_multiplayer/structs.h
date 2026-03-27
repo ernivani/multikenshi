@@ -190,6 +190,7 @@ namespace structs {
         char padding1[0x1A8];
         char name[0x10];        // Offset 0x1A8
         int nameLength;// Offset 0x1B8
+        public:
         __declspec(nothrow) const char* getName() const {
             __try {
                 if (nameLength > 15)return (*((char**)this->name));

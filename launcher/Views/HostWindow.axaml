@@ -1,11 +1,10 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:KenshiLauncher.ViewModels"
-        xmlns:svc="using:KenshiLauncher.Services"
         x:Class="KenshiLauncher.Views.HostWindow"
         x:DataType="vm:HostViewModel"
         Title="Kenshi Multi — Server"
-        Width="600" Height="500"
+        Width="620" Height="560"
         MinWidth="400" MinHeight="300"
         Background="#0F0F0F"
         ExtendClientAreaToDecorationsHint="True"
@@ -73,8 +72,8 @@
         </Grid>
       </Border>
 
-      <!-- Player list -->
-      <Border Grid.Row="1" Padding="0,0,0,0" MaxHeight="160">
+      <!-- Player cards -->
+      <Border Grid.Row="1" Padding="0,0,0,0" MaxHeight="280">
         <DockPanel>
           <!-- Player list header -->
           <Border DockPanel.Dock="Top" Padding="16,6" BorderBrush="#262626" BorderThickness="0,0,0,1">
@@ -89,31 +88,73 @@
             </Grid>
           </Border>
           <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding PlayerRecords}">
+            <ItemsControl ItemsSource="{Binding PlayerCards}">
               <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:PlayerRecordViewModel">
-                  <Border BorderBrush="#262626" BorderThickness="0,0,0,1" Padding="16,6">
-                    <Grid ColumnDefinitions="12,*,Auto,60,50">
-                      <!-- Online dot -->
-                      <Panel Grid.Column="0" Width="6" Height="6" VerticalAlignment="Center">
-                        <Ellipse Width="6" Height="6" Fill="#4a9e6a"
-                                 IsVisible="{Binding IsOnline}" />
-                        <Ellipse Width="6" Height="6" Fill="#3a3a3a"
-                                 IsVisible="{Binding !IsOnline}" />
-                      </Panel>
-                      <!-- Name -->
-                      <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="11"
-                                 Foreground="#F0F0F0" VerticalAlignment="Center" />
-                      <!-- Faction -->
-                      <TextBlock Grid.Column="2" Text="{Binding Faction}" FontSize="10"
-                                 Foreground="#6b6b6b" VerticalAlignment="Center" Margin="8,0" />
-                      <!-- Last seen -->
-                      <TextBlock Grid.Column="3" Text="{Binding LastSeenText}" FontSize="10"
-                                 Foreground="#3a3a3a" VerticalAlignment="Center" />
-                      <!-- Playtime -->
-                      <TextBlock Grid.Column="4" Text="{Binding PlaytimeText}" FontSize="10"
-                                 Foreground="#3a3a3a" VerticalAlignment="Center" HorizontalAlignment="Right" />
-                    </Grid>
+                <DataTemplate x:DataType="vm:PlayerCardViewModel">
+                  <Border BorderBrush="#262626" BorderThickness="0,0,0,1" Padding="0">
+                    <StackPanel>
+                      <!-- Card header (clickable to expand) -->
+                      <Border Padding="16,8" Background="#141414" Cursor="Hand"
+                              PointerPressed="PlayerCard_PointerPressed"
+                              Tag="{Binding}">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <StackPanel Grid.Column="0" Spacing="3">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                              <!-- Player name -->
+                              <TextBlock Text="{Binding HeaderText}" FontSize="12"
+                                         FontWeight="SemiBold" Foreground="#F0F0F0" />
+                              <!-- Host badge -->
+                              <Border Background="#1a2010" CornerRadius="4" Padding="5,1"
+                                      IsVisible="{Binding IsHost}" VerticalAlignment="Center">
+                                <TextBlock Text="HOST" FontSize="9" Foreground="#7ab648"
+                                           VerticalAlignment="Center" />
+                              </Border>
+                            </StackPanel>
+                            <!-- Faction + Position row -->
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                              <TextBlock FontSize="10" Foreground="#6b6b6b">
+                                <TextBlock.Text>
+                                  <MultiBinding StringFormat="{}{0}  |  {1}">
+                                    <Binding Path="Faction" />
+                                    <Binding Path="Position" />
+                                  </MultiBinding>
+                                </TextBlock.Text>
+                              </TextBlock>
+                            </StackPanel>
+                          </StackPanel>
+                          <!-- Squad count badge -->
+                          <Border Grid.Column="1" Background="#1a1a1a" CornerRadius="8"
+                                  Padding="8,2" VerticalAlignment="Center">
+                            <TextBlock FontSize="10" Foreground="#6b6b6b">
+                              <TextBlock.Text>
+                                <MultiBinding StringFormat="{}{0} squad">
+                                  <Binding Path="SquadCount" />
+                                </MultiBinding>
+                              </TextBlock.Text>
+                            </TextBlock>
+                          </Border>
+                        </Grid>
+                      </Border>
+
+                      <!-- Expanded squad list -->
+                      <ItemsControl ItemsSource="{Binding SquadMembers}"
+                                    IsVisible="{Binding IsExpanded}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:SquadMemberViewModel">
+                            <Border Padding="28,3,16,3" Background="#0F0F0F">
+                              <Grid ColumnDefinitions="12,*,Auto">
+                                <TextBlock Grid.Column="0" Text="·" FontSize="11"
+                                           Foreground="#3a3a3a" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="10"
+                                           Foreground="#a0a0a0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="{Binding Position}" FontSize="10"
+                                           Foreground="#3a3a3a" VerticalAlignment="Center" />
+                              </Grid>
+                            </Border>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
                   </Border>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>

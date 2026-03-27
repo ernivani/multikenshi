@@ -11,11 +11,15 @@
 
 namespace network {
 	extern std::atomic<bool> running;
+	extern int playerId;
+	extern bool isHost;
+	extern std::string steamName;
+	extern std::string steamId;
 
 	bool initializeWinsock();
 	SOCKET connectToServer(const std::string& ip, int port);
 	void receiveMessages(SOCKET client_fd);
-	void sendMessage(SOCKET client_fd, const std::string& message);
+	void sendLine(SOCKET client_fd, const std::string& json);
 	void cleanup(SOCKET client_fd);
 }
 #endif // NETWORK_H
