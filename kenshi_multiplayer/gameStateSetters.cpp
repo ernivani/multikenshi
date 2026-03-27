@@ -122,11 +122,16 @@ namespace gameState {
         if (x == 0.0f && y == 0.0f && z == 0.0f) return;
 
         structs::AnimationClassHuman* anim = safeFindChar(&charsByName, name.c_str(), name.size());
+
+        // If not in charsByName, check hijacked chars
+        if (!anim)
+            anim = charHijack::findHijacked(name);
+
         if (anim) {
             safeSetPosition(anim, x, y, z);
-            remoteChars[name] = GetTickCount64(); // mark as remotely controlled
+            remoteChars[name] = GetTickCount64();
         } else {
-            // Character doesn't exist locally — queue NPC hijack
+            // Character doesn't exist locally and not hijacked yet
             charHijack::queueSpawn(playerId, name, x, y, z);
         }
     }

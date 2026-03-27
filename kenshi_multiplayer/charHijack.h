@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include "structs.h"
 
 namespace charHijack {
 
@@ -16,6 +17,9 @@ namespace charHijack {
     // Called from sync loop — checks for new characters and hijacks if spawn pending
     // Returns number of successful hijacks this cycle
     int processHijacks();
+
+    // Look up a hijacked NPC by remote character name
+    structs::AnimationClassHuman* findHijacked(const std::string& name);
 
     // Check if there are pending spawn requests
     bool hasPendingSpawns();

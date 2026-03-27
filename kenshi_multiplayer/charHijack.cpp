@@ -3,14 +3,31 @@
 #include "gameState.h"
 #include "utils.h"
 #include <set>
+#include <map>
 #include <iostream>
 
 namespace charHijack {
 
     static std::vector<SpawnRequest> pendingSpawns;
-    static std::set<std::string> knownChars; // chars we've seen before
+    static std::set<std::string> knownChars;
+
+    // Maps remote char name -> hijacked NPC's AnimationClassHuman pointer
+    // This is how applyCharacterPosition finds the NPC to move
+    static std::map<std::string, structs::AnimationClassHuman*> hijackedChars;
 
     void queueSpawn(int playerId, const std::string& name, float x, float y, float z) {
+        // Don't queue if already pending for this name
+        for (auto it = pendingSpawns.begin(); it != pendingSpawns.end(); ++it) {
+            if (it->charName == name) {
+                // Just update position
+                it->x = x; it->y = y; it->z = z;
+                return;
+            }
+        }
+
+        // Don't queue if already hijacked
+        if (hijackedChars.count(name) > 0) return;
+
         SpawnRequest req;
         req.playerId = playerId;
         req.charName = name;
@@ -28,9 +45,17 @@ namespace charHijack {
     void clearPending() {
         pendingSpawns.clear();
         knownChars.clear();
+        hijackedChars.clear();
     }
 
-    // SEH-safe position writer (same as in gameStateSetters.cpp)
+    // Look up a hijacked NPC by its remote character name
+    // Called from applyCharacterPosition when safeFindChar fails on charsByName
+    structs::AnimationClassHuman* findHijacked(const std::string& name) {
+        auto it = hijackedChars.find(name);
+        return (it != hijackedChars.end()) ? it->second : nullptr;
+    }
+
+    // SEH-safe position writer
     __declspec(nothrow) static bool safeSetPos(structs::AnimationClassHuman* anim, float x, float y, float z) {
         __try {
             if (!anim || !anim->movement || !anim->movement->position) return false;
@@ -44,7 +69,6 @@ namespace charHijack {
         }
     }
 
-    // SEH-safe name + pointer collector for detecting new chars
     struct CharInfo {
         const char* name;
         structs::AnimationClassHuman* anim;
@@ -72,40 +96,40 @@ namespace charHijack {
     int processHijacks() {
         if (pendingSpawns.empty()) return 0;
 
-        // Find new characters that weren't in knownChars
         CharInfo newChars[64];
         int newCount = safeCollectNewChars(&gameState::charsByName, &knownChars, newChars, 64);
 
         int hijacked = 0;
 
         for (int i = 0; i < newCount && !pendingSpawns.empty(); ++i) {
-            std::string charName(newChars[i].name);
+            std::string npcName(newChars[i].name);
 
             // Skip the player's own character
             if (gameState::player == newChars[i].anim) {
-                knownChars.insert(charName);
+                knownChars.insert(npcName);
                 continue;
             }
 
             // Hijack this NPC for the pending spawn request
-            SpawnRequest& req = pendingSpawns.front();
+            SpawnRequest req = pendingSpawns.front();
 
             if (safeSetPos(newChars[i].anim, req.x, req.y, req.z)) {
-                // Mark as remote-controlled
-                gameState::remoteChars[charName] = GetTickCount64();
+                // Map remote name -> hijacked NPC pointer
+                hijackedChars[req.charName] = newChars[i].anim;
+                gameState::remoteChars[npcName] = GetTickCount64();
 
-                std::cout << utils::ts() << "HIJACKED: '" << charName
-                          << "' -> player " << req.playerId
-                          << " at (" << req.x << ", " << req.y << ", " << req.z << ")" << std::endl;
+                std::cout << utils::ts() << "HIJACKED: '" << npcName
+                          << "' -> '" << req.charName << "' (player " << req.playerId
+                          << ") at (" << req.x << ", " << req.y << ", " << req.z << ")" << std::endl;
 
                 pendingSpawns.erase(pendingSpawns.begin());
                 hijacked++;
             }
 
-            knownChars.insert(charName);
+            knownChars.insert(npcName);
         }
 
-        // Also add remaining new chars to known set (so we don't try to hijack them later)
+        // Add remaining new chars to known set
         for (int i = 0; i < newCount; ++i) {
             knownChars.insert(std::string(newChars[i].name));
         }
