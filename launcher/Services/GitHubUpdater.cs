@@ -26,14 +26,37 @@ public static class GitHubUpdater
     }
 
     /// <summary>
+    /// Returns true if we're running in dev mode (dotnet run / Debug build).
+    /// In dev mode, local build files take priority over GitHub downloads.
+    /// </summary>
+    public static bool IsDevMode()
+    {
+        // Check if local C++ build output exists (dev has the repo)
+        var dir = Path.GetDirectoryName(
+            System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "");
+        while (dir != null)
+        {
+            var buildDll = Path.Combine(dir, "kenshi_multiplayer", "x64", "Release", DllName);
+            if (File.Exists(buildDll)) return true;
+            dir = Path.GetDirectoryName(dir);
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Check GitHub releases for updates and download DLL + mod if needed.
+    /// Skips download in dev mode (uses local build files instead).
     /// Returns (dllUpdated, modUpdated, message).
     /// </summary>
     public static async Task<(bool DllUpdated, bool ModUpdated, string Message)> CheckAndUpdate(
         Action<string>? log = null)
     {
-        bool dllUpdated = false;
-        bool modUpdated = false;
+        // Dev mode: skip GitHub, use local files
+        if (IsDevMode())
+        {
+            log?.Invoke("Dev mode — using local build files.");
+            return (false, false, "Dev mode");
+        }
 
         try
         {
@@ -45,12 +68,10 @@ public static class GitHubUpdater
             var tag = release.GetProperty("tag_name").GetString() ?? "";
             log?.Invoke($"Latest release: {tag}");
 
-            // Find assets
+            // Find asset URLs
             var assets = release.GetProperty("assets");
-            string? dllUrl = null;
-            string? modUrl = null;
-            long dllSize = 0;
-            long modSize = 0;
+            string? dllUrl = null, modUrl = null;
+            long dllSize = 0, modSize = 0;
 
             foreach (var asset in assets.EnumerateArray())
             {
@@ -62,56 +83,66 @@ public static class GitHubUpdater
                 if (name == ModName) { modUrl = url; modSize = size; }
             }
 
-            // Download DLL if missing or different size
             var launcherDir = Path.GetDirectoryName(
                 System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "")!;
+
+            // Check what needs downloading
+            bool needDll = false, needMod = false;
 
             if (dllUrl != null)
             {
                 var localDll = Path.Combine(launcherDir, DllName);
-                bool needDownload = !File.Exists(localDll);
-                if (!needDownload && dllSize > 0)
-                {
-                    var localSize = new FileInfo(localDll).Length;
-                    needDownload = localSize != dllSize;
-                }
-
-                if (needDownload)
-                {
-                    log?.Invoke("Downloading DLL...");
-                    var bytes = await _http.GetByteArrayAsync(dllUrl);
-                    File.WriteAllBytes(localDll, bytes);
-                    DllIntegrity.WriteHash(localDll);
-                    dllUpdated = true;
-                    log?.Invoke($"DLL updated ({bytes.Length / 1024}KB).");
-                }
+                needDll = !File.Exists(localDll) ||
+                          (dllSize > 0 && new FileInfo(localDll).Length != dllSize);
             }
 
-            // Download mod if missing or different size
             if (modUrl != null)
             {
                 var localMod = Path.Combine(launcherDir, ModName);
-                bool needDownload = !File.Exists(localMod);
-                if (!needDownload && modSize > 0)
-                {
-                    var localSize = new FileInfo(localMod).Length;
-                    needDownload = localSize != modSize;
-                }
-
-                if (needDownload)
-                {
-                    log?.Invoke("Downloading mod...");
-                    var bytes = await _http.GetByteArrayAsync(modUrl);
-                    File.WriteAllBytes(localMod, bytes);
-                    modUpdated = true;
-                    log?.Invoke($"Mod updated ({bytes.Length / 1024}KB).");
-                }
+                needMod = !File.Exists(localMod) ||
+                          (modSize > 0 && new FileInfo(localMod).Length != modSize);
             }
 
-            if (!dllUpdated && !modUpdated)
+            if (!needDll && !needMod)
                 return (false, false, "Up to date.");
 
-            return (dllUpdated, modUpdated, "Updated successfully.");
+            // Download in parallel
+            var tasks = new System.Collections.Generic.List<Task>();
+            bool dllUpdated = false, modUpdated = false;
+
+            if (needDll && dllUrl != null)
+            {
+                log?.Invoke("Downloading DLL...");
+                tasks.Add(Task.Run(async () =>
+                {
+                    var bytes = await _http.GetByteArrayAsync(dllUrl);
+                    var localDll = Path.Combine(launcherDir, DllName);
+                    File.WriteAllBytes(localDll, bytes);
+                    DllIntegrity.WriteHash(localDll);
+                    dllUpdated = true;
+                }));
+            }
+
+            if (needMod && modUrl != null)
+            {
+                log?.Invoke("Downloading mod...");
+                tasks.Add(Task.Run(async () =>
+                {
+                    var bytes = await _http.GetByteArrayAsync(modUrl);
+                    File.WriteAllBytes(Path.Combine(launcherDir, ModName), bytes);
+                    modUpdated = true;
+                }));
+            }
+
+            await Task.WhenAll(tasks);
+
+            var parts = new System.Collections.Generic.List<string>();
+            if (dllUpdated) parts.Add("DLL");
+            if (modUpdated) parts.Add("mod");
+            var msg = $"Downloaded {string.Join(" + ", parts)}.";
+            log?.Invoke(msg);
+
+            return (dllUpdated, modUpdated, msg);
         }
         catch (Exception ex)
         {
