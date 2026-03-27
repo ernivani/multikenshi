@@ -252,7 +252,7 @@ public partial class PlayViewModel : ObservableObject
 
                 // Auto-download DLL from GitHub releases if needed
                 _main.PostLog($"MultiKenshi v{Program.Version}");
-                var (dllUp, updateMsg) = await GitHubUpdater.CheckAndUpdate(_main.PostLog);
+                var (dllUp, updateMsg) = await GitHubUpdater.UpdateDll(_main.PostLog);
                 if (dllUp)
                     _main.PostLog(updateMsg);
 
@@ -480,7 +480,7 @@ public partial class PlayViewModel : ObservableObject
         InstallMessage = "Checking for updates...";
 
         // Try downloading from GitHub first
-        var (dllUp, msg) = await GitHubUpdater.CheckAndUpdate(_main.PostLog);
+        var (dllUp, msg) = await GitHubUpdater.UpdateDll(_main.PostLog);
         if (dllUp)
         {
             InstallMessage = "Downloaded from GitHub";

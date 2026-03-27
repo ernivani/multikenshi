@@ -7,7 +7,7 @@ namespace KenshiLauncher;
 
 class Program
 {
-    public const string Version = "0.5.2";
+    public const string Version = "0.5.3";
 
     [STAThread]
     public static void Main(string[] args)
@@ -40,21 +40,24 @@ class Program
         }
         catch { }
 
-        // Check for launcher self-update (silent, no popup)
+        // Auto-update at startup (skip in dev mode)
         if (!GitHubUpdater.IsDevMode())
         {
-            var updateTask = GitHubUpdater.CheckLauncherUpdate(msg => Console.WriteLine(msg));
-            updateTask.Wait(TimeSpan.FromSeconds(15));
+            Console.WriteLine($"[Startup] MultiKenshi v{Version}");
 
-            if (updateTask.IsCompletedSuccessfully && updateTask.Result)
-                return; // new instance launched, this one exits
+            // 1. Check launcher update
+            var launcherTask = GitHubUpdater.UpdateLauncher(msg => Console.WriteLine(msg));
+            launcherTask.Wait(TimeSpan.FromSeconds(15));
+            if (launcherTask.IsCompletedSuccessfully && launcherTask.Result)
+                return; // restarting with new launcher
+
+            // 2. Check DLL update
+            var dllTask = GitHubUpdater.UpdateDll(msg => Console.WriteLine(msg));
+            dllTask.Wait(TimeSpan.FromSeconds(15));
         }
-
-        // Also check for DLL updates at startup (non-blocking)
-        if (!GitHubUpdater.IsDevMode())
+        else
         {
-            var dllTask = GitHubUpdater.CheckAndUpdate(msg => Console.WriteLine(msg));
-            dllTask.Wait(TimeSpan.FromSeconds(10));
+            Console.WriteLine($"[Startup] MultiKenshi v{Version} (dev mode)");
         }
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
