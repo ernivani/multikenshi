@@ -167,11 +167,12 @@ void dllmain() {
     gameState::scanHeap();
     std::cout << utils::ts() << "Game loaded." << std::endl;
 
-    // 9. Late offset resolution (now that we have runtime-discovered addresses)
+    // 9. Late offset resolution (disabled — needs validation before enabling hooks)
+    // TODO: resolveSquadSpawnLate may find false positives that crash on hook install
     crashlog::phase("late_offsets");
-    if (offsets::spawnSquadFuncCall == 0 && offsets::squadSpawningHand != 0) {
-        offsets::resolveSquadSpawnLate();
-    }
+    std::cout << utils::ts() << "Late resolve: squadSpawningHand=0x" << std::hex
+              << offsets::squadSpawningHand << " (late scan disabled, using NPC hijacking)"
+              << std::dec << std::endl;
 
     // 10. Setup hooks and tracked variables
     crashlog::phase("setup_hooks");
