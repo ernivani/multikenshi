@@ -121,7 +121,7 @@ namespace network {
         hello["t"] = "hello";
         hello["steamName"] = steamName;
         hello["steamId"] = steamId;
-        hello["v"] = "0.5.4";
+        hello["v"] = "0.5.6";
         sendLine(client_fd, hello.dump());
         std::cout << utils::ts() << "Handshake sent." << std::endl;
 
