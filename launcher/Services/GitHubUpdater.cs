@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -147,6 +148,79 @@ public static class GitHubUpdater
         catch (Exception ex)
         {
             return (false, false, $"Update check failed: {ex.Message}");
+        }
+    }
+
+    private const string LauncherName = "KenshiLauncher.exe";
+
+    /// <summary>
+    /// Check if a newer launcher is available on GitHub.
+    /// If yes, download it, swap the exe, and restart.
+    /// Call this at startup before anything else.
+    /// </summary>
+    public static async Task<bool> CheckLauncherUpdate(Action<string>? log = null)
+    {
+        if (IsDevMode()) return false;
+
+        try
+        {
+            var json = await _http.GetStringAsync(ApiUrl);
+            var release = JsonSerializer.Deserialize<JsonElement>(json);
+            var assets = release.GetProperty("assets");
+
+            string? launcherUrl = null;
+            long remoteSize = 0;
+
+            foreach (var asset in assets.EnumerateArray())
+            {
+                var name = asset.GetProperty("name").GetString() ?? "";
+                if (name == LauncherName)
+                {
+                    launcherUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
+                    remoteSize = asset.GetProperty("size").GetInt64();
+                    break;
+                }
+            }
+
+            if (launcherUrl == null) return false;
+
+            var currentExe = Process.GetCurrentProcess().MainModule?.FileName;
+            if (currentExe == null) return false;
+
+            var currentSize = new FileInfo(currentExe).Length;
+            if (remoteSize > 0 && currentSize == remoteSize)
+                return false; // same size = same version
+
+            log?.Invoke("New launcher version available, downloading...");
+            var bytes = await _http.GetByteArrayAsync(launcherUrl);
+
+            // Swap: rename current exe to .old, write new exe, restart
+            var dir = Path.GetDirectoryName(currentExe)!;
+            var newExe = Path.Combine(dir, LauncherName + ".new");
+            var oldExe = currentExe + ".old";
+
+            File.WriteAllBytes(newExe, bytes);
+
+            // On Windows you can rename a running exe but not overwrite it
+            try { if (File.Exists(oldExe)) File.Delete(oldExe); } catch { }
+            File.Move(currentExe, oldExe);
+            File.Move(newExe, currentExe);
+
+            log?.Invoke("Launcher updated — restarting...");
+
+            // Restart
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = currentExe,
+                UseShellExecute = true
+            });
+
+            return true; // caller should exit
+        }
+        catch (Exception ex)
+        {
+            log?.Invoke($"Launcher update check failed: {ex.Message}");
+            return false;
         }
     }
 }
