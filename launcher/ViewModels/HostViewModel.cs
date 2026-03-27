@@ -111,6 +111,7 @@ public partial class HostViewModel : ObservableObject
     private readonly RelayServer _server;
     private readonly MainViewModel _main;
     private readonly SaveManager _saveManager;
+    private readonly SaveFileServer _saveFileServer = new();
     private Timer? _statusTimer;
     private Timer? _autoSaveTimer;
     private DateTime _sessionStartUtc;
@@ -307,6 +308,7 @@ public partial class HostViewModel : ObservableObject
             _autoSaveTimer = null;
 
             _server.Stop();
+            _saveFileServer.Stop();
             IsRunning = false;
         }
         else
@@ -322,6 +324,11 @@ public partial class HostViewModel : ObservableObject
 
             bool hasRestore = _activeSaveData != null;
             _server.Start(port, restoreFromSave: hasRestore);
+
+            // Start save file server on port+1 for guests to download
+            _saveFileServer.Log = _server.Log;
+            _saveFileServer.Start(port + 1);
+
             IsRunning = true;
             _sessionStartUtc = DateTime.UtcNow;
 

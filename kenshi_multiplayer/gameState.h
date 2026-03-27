@@ -22,6 +22,7 @@ namespace gameState {
     extern std::map<std::string, structs::AnimationClassHuman*> charsByName;
     extern std::map<std::string, long long> charLastSeen;
     extern std::map<std::string, std::string> charFactions; // name → faction (set on game thread)
+    extern std::map<std::string, long long> remoteChars;   // name → last remote update time
     extern std::map<structs::Building*, std::pair<std::string, long long>> builds;
     extern std::map<std::string, structs::GameData*> DB;
     extern int squadSpawnBypassAmm;

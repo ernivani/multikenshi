@@ -15,6 +15,7 @@ using json = nlohmann::json;
 extern float g_enforcedSpeed;
 
 namespace gameState {
+    std::map<std::string, long long> remoteChars;
     extern structs::GameWorldClass* gameWorld;
     using GameWorldOffset = void(*)(structs::GameWorldClass*, bool);
     static GameWorldOffset gamePauseFn = nullptr;
@@ -122,6 +123,7 @@ namespace gameState {
         structs::AnimationClassHuman* anim = safeFindChar(&charsByName, name.c_str(), name.size());
         if (anim) {
             safeSetPosition(anim, x, y, z);
+            remoteChars[name] = GetTickCount64(); // mark as remotely controlled
         }
     }
 

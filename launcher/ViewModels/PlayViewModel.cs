@@ -250,11 +250,17 @@ public partial class PlayViewModel : ObservableObject
                 var (sName, sId) = SteamIdentity.GetCurrentUser();
                 GameConfigWriter.Write(_config.KenshiPath, JoinIP, JoinPort, sName, sId);
 
-                // Auto-download DLL + mod from GitHub releases if needed
+                // Auto-download DLL from GitHub releases if needed
                 _main.PostLog($"MultiKenshi v{Program.Version}");
                 var (dllUp, updateMsg) = await GitHubUpdater.CheckAndUpdate(_main.PostLog);
                 if (dllUp)
                     _main.PostLog(updateMsg);
+
+                // Try to download host's save (on port+1)
+                if (int.TryParse(JoinPort, out var joinPort))
+                {
+                    await DownloadHostSave(JoinIP, joinPort + 1);
+                }
 
                 var process = ProcessLauncher.FindKenshiProcess();
                 int pid;
@@ -588,6 +594,28 @@ public partial class PlayViewModel : ObservableObject
         }
 
         return null;
+    }
+
+    private async Task DownloadHostSave(string ip, int httpPort)
+    {
+        try
+        {
+            using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            var url = $"http://{ip}:{httpPort}/";
+            _main.PostLog($"Downloading host save from {url}...");
+
+            var bytes = await http.GetByteArrayAsync(url);
+            if (bytes.Length > 0)
+            {
+                KenshiSaveManager.ImportSaveBytes(bytes);
+                _main.PostLog($"Save downloaded ({bytes.Length / 1024}KB). Load the 'multiplayer' save in Kenshi.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _main.PostLog($"Save download skipped: {ex.Message}");
+            _main.PostLog("You can play with your own save (characters won't be shared).");
+        }
     }
 
     public void RefreshDllStatus()

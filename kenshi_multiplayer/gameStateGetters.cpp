@@ -230,6 +230,10 @@ namespace gameState {
                 // Skip stale characters (not seen in 10s) — but not while paused
                 if (!gamePaused && entries[i].lastSeen > 0 && now - entries[i].lastSeen > 10000) continue;
 
+                // Skip remotely-controlled characters (prevent position echo)
+                auto rc = remoteChars.find(std::string(entries[i].name));
+                if (rc != remoteChars.end() && now - rc->second < 5000) continue;
+
                 float x, y, z;
                 if (!safeGetPosition(entries[i].anim, x, y, z)) continue;
                 if (x == 0.0f && y == 0.0f && z == 0.0f) continue;
