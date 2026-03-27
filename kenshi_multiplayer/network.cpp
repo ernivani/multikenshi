@@ -11,10 +11,16 @@
 #pragma comment(lib, "ws2_32.lib")
 
 #include "network.h"
+#include "offsets.h"
 #include "json.hpp"
 #include "utils.h"
 
 using json = nlohmann::json;
+
+// Enforced speed from server (for guests or /speed override)
+// -1 means no enforcement (host controls naturally)
+// Global so gameStateSetters.cpp can set it, network.cpp sync loop reads it
+float g_enforcedSpeed = -1.0f;
 
 namespace network {
     std::atomic<bool> running(true);
@@ -142,21 +148,47 @@ namespace network {
         }
     }
 
-    // Main sync loop: 1 send → 1 receive per cycle, throttled to ~5Hz
+    // Main sync loop: entity sync at ~5Hz, speed enforcement at ~60Hz
     static void syncLoop(SOCKET client_fd, std::string& buffer) {
         std::string line;
 
         // Wait until gameplay starts before sending entity data.
         // During character creation, game speed is 0 and map walks can interfere.
-        // Activate full sync when: game speed > 0 (gameplay started) AND at least 5s passed.
         long long syncStartTime = GetTickCount64();
         bool fullSyncActive = false;
+        long long lastSyncTime = 0;
+        const long long SYNC_INTERVAL = 200; // 5Hz for entity sync
 
         while (running) {
-            Sleep(200); // 5 updates/sec
+            Sleep(16); // ~60Hz tick for responsive speed enforcement
+
+            // Enforce server speed instantly (guest or override)
+            if (::g_enforcedSpeed >= 0.0f && gameState::gameWorld) {
+                gameState::gameWorld->gameSpeed = ::g_enforcedSpeed;
+
+                // Use setPaused function if available (properly updates UI)
+                // Without it, we can only write gameSpeed (UI won't update)
+                if (::g_enforcedSpeed > 0.0f && gameState::gameWorld->paused) {
+                    // Game is paused but server says run — unpause properly
+                    static auto gamePauseFn = offsets::setPaused != 0
+                        ? reinterpret_cast<void(*)(structs::GameWorldClass*, bool)>(
+                              gameState::moduleBase + offsets::setPaused)
+                        : (void(*)(structs::GameWorldClass*, bool))nullptr;
+                    if (gamePauseFn) {
+                        gameState::gameWorld->paused = false;
+                        gamePauseFn(gameState::gameWorld, true);
+                        gamePauseFn(gameState::gameWorld, false);
+                    }
+                }
+            }
+
+            // Only do entity sync every 200ms
+            long long now = GetTickCount64();
+            if (now - lastSyncTime < SYNC_INTERVAL) continue;
+            lastSyncTime = now;
 
             if (!fullSyncActive) {
-                bool timeOk = (GetTickCount64() - syncStartTime) > 5000;
+                bool timeOk = (now - syncStartTime) > 5000;
                 bool gameRunning = gameState::getSpeedFloat() > 0.0f;
                 if (timeOk && gameRunning) {
                     fullSyncActive = true;

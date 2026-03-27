@@ -368,8 +368,8 @@ public class RelayServer
                     {
                         if (_players.TryGetValue(clientId, out var p))
                         {
-                            // Speed — only accept from client if no server override
-                            if (_speedOverride == null && msg.Value.TryGetProperty("speed", out var sp))
+                            // Speed — only accept from HOST, ignore guests
+                            if (clientId == _hostId && msg.Value.TryGetProperty("speed", out var sp))
                             {
                                 if (sp.TryGetSingle(out var spVal))
                                     _speed = spVal;
@@ -513,13 +513,31 @@ public class RelayServer
                 });
             }
 
+            // Speed: for host, only send if there's a server override
+            // (so host controls naturally unless admin overrides).
+            // For guests, always send host's speed.
+            bool isForHost = excludeClientId != _hostId ? false :
+                             _players.ContainsKey(excludeClientId);
+            // Actually: excludeClientId IS the recipient (we exclude their chars).
+            // Wait — excludeClientId is the client we're building this for.
+            // So if excludeClientId == _hostId, this wu is FOR the host.
+            bool recipientIsHost = (excludeClientId == _hostId);
+            float? speedToSend = null;
+            if (_speedOverride != null)
+                speedToSend = _speedOverride;       // override → send to everyone
+            else if (!recipientIsHost)
+                speedToSend = _speed;               // no override, guest → send host speed
+
             var wu = new Dictionary<string, object>
             {
                 ["t"] = "wu",
-                ["speed"] = _speedOverride ?? _speed,
                 ["players"] = playerList,
                 ["buildings"] = _hostBuildings
             };
+
+            // Only include speed field when we need to control the client
+            if (speedToSend != null)
+                wu["speed"] = speedToSend.Value;
 
             return wu;
         }

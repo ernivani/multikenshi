@@ -8,6 +8,9 @@
 
 using json = nlohmann::json;
 
+// Defined in network.cpp — enforced speed for guests/override
+extern float g_enforcedSpeed;
+
 namespace gameState {
 
     // SEH-safe string reader: returns empty string on fault
@@ -132,6 +135,10 @@ namespace gameState {
     }
 
     float getSpeedFloat() {
+        // When server is enforcing speed, report that instead of game state
+        // (game UI may think it's paused even though simulation is running)
+        if (::g_enforcedSpeed >= 0.0f) return ::g_enforcedSpeed;
+
         if (!gameWorld) return 0.0f;
         if (gameWorld->paused) return 0.0f;
         return gameWorld->gameSpeed;

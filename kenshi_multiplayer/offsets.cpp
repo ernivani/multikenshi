@@ -120,6 +120,71 @@ namespace offsets {
             }
         }
 
+        // setPaused: find function that writes to GameWorldClass->paused (offset 0x8B9)
+        // Scan .text for any instruction with displacement 0x8B9 (bytes: B9 08 00 00)
+        // Accept any MOV byte or CMP byte instruction encoding
+        {
+            uint8_t dispBytes[] = { 0xB9, 0x08, 0x00, 0x00 };
+            uintptr_t textEnd = text.base + text.size - 16;
+            uintptr_t bestCandidate = 0;
+            int hitCount = 0;
+
+            for (uintptr_t pos = text.base + 4; pos < textEnd; pos++) {
+                if (memcmp((void*)pos, dispBytes, 4) != 0) continue;
+                hitCount++;
+
+                // Check if this is a memory operand with mod=10 (disp32)
+                // The byte before the displacement is the ModRM byte
+                uint8_t modrm = *(uint8_t*)(pos - 1);
+                uint8_t mod = (modrm >> 6) & 3;
+                if (mod != 2) continue; // mod=10 means [reg+disp32]
+
+                // Check the opcode byte(s) before ModRM
+                uint8_t opcode = *(uint8_t*)(pos - 2);
+                uint8_t prefix = *(uint8_t*)(pos - 3);
+
+                bool isMemWrite = false;
+                // 88 ModRM = mov [reg+disp32], r8 (byte register store)
+                if (opcode == 0x88) isMemWrite = true;
+                // C6 ModRM = mov byte [reg+disp32], imm8
+                if (opcode == 0xC6) isMemWrite = true;
+                // With REX prefix (40-4F): REX 88 ModRM or REX C6 ModRM
+                if ((prefix >= 0x40 && prefix <= 0x4F) && (opcode == 0x88 || opcode == 0xC6))
+                    isMemWrite = true;
+
+                if (!isMemWrite) continue;
+
+                // Found a byte write to offset 0x8B9. Walk backwards to find function start.
+                uintptr_t instrAddr = pos - 2;
+                if (prefix >= 0x40 && prefix <= 0x4F) instrAddr = pos - 3;
+
+                uintptr_t funcStart = 0;
+                for (uintptr_t back = instrAddr - 1; back > instrAddr - 2048; back--) {
+                    // Look for INT3 padding (CC CC) indicating function boundary
+                    if (*(uint8_t*)back == 0xCC && *(uint8_t*)(back - 1) == 0xCC) {
+                        funcStart = back + 1;
+                        break;
+                    }
+                }
+
+                if (funcStart != 0) {
+                    bestCandidate = funcStart;
+                    std::cout << "  setPaused candidate at 0x" << std::hex
+                              << (instrAddr - moduleBase) << " -> func 0x"
+                              << (funcStart - moduleBase) << std::dec << "\n";
+                    break;
+                }
+            }
+
+            if (bestCandidate) {
+                setPaused = bestCandidate - moduleBase;
+                std::cout << "  setPaused:           0x" << std::hex << setPaused << std::dec << "\n";
+            } else {
+                std::cout << "  setPaused: not found (" << hitCount
+                          << " disp hits, no write match)\n";
+            }
+        }
+
         // Hook offsets are always required.
         // Data offsets (GameDataManagerMain, squadSpawningHand, gameWorldOffset)
         // may be resolved at runtime if pattern scan can't find them.

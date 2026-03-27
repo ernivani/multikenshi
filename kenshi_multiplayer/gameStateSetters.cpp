@@ -11,6 +11,9 @@
 
 using json = nlohmann::json;
 
+// Defined in network.cpp — sync loop enforces this at 60Hz
+extern float g_enforcedSpeed;
+
 namespace gameState {
     extern structs::GameWorldClass* gameWorld;
     using GameWorldOffset = void(*)(structs::GameWorldClass*, bool);
@@ -82,14 +85,11 @@ namespace gameState {
         }
     }
 
-    static float lastAppliedSpeed = -1.0f;
     static void applySpeedFromWU(float speed) {
         if (!gameWorld) return;
-        // Continuously enforce speed (game overwrites gameSpeed each frame)
-        gameWorld->gameSpeed = speed;
-        if (speed != lastAppliedSpeed) {
-            lastAppliedSpeed = speed;
-            std::cout << utils::ts() << "Speed applied: " << speed << std::endl;
+        if (g_enforcedSpeed != speed) {
+            g_enforcedSpeed = speed;
+            std::cout << utils::ts() << "Speed enforced: " << speed << std::endl;
         }
     }
 
@@ -127,10 +127,15 @@ namespace gameState {
 
     void applyWorldUpdate(const json& wu) {
 
-        // Apply speed
+        // Apply speed — server sends "speed" only when it wants to control us
+        // (guest syncing to host, or /speed override). No "speed" field = host controls naturally.
         if (wu.contains("speed")) {
             float speed = wu["speed"].get<float>();
             applySpeedFromWU(speed);
+        } else if (g_enforcedSpeed >= 0.0f) {
+            // Server stopped sending speed (override cleared) — release control
+            g_enforcedSpeed = -1.0f;
+            std::cout << utils::ts() << "Speed control released — local control restored." << std::endl;
         }
 
         // Apply other players' characters
