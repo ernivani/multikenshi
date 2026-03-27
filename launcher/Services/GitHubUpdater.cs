@@ -84,19 +84,25 @@ public static class GitHubUpdater
                 return (false, "No DLL in release.");
 
             var localDll = Paths.DllPath;
+            var versionFile = localDll + ".version";
 
-            bool needDll = !File.Exists(localDll) ||
-                           (dllSize > 0 && new FileInfo(localDll).Length != dllSize);
+            // Compare release tag with stored version (more reliable than file size)
+            string localVersion = "";
+            if (File.Exists(versionFile))
+                localVersion = File.ReadAllText(versionFile).Trim();
+
+            bool needDll = !File.Exists(localDll) || localVersion != tag;
 
             if (!needDll)
                 return (false, "Up to date.");
 
-            log?.Invoke("Downloading DLL...");
+            log?.Invoke($"Downloading DLL ({tag})...");
             var bytes = await _http.GetByteArrayAsync(dllUrl);
             File.WriteAllBytes(localDll, bytes);
             DllIntegrity.WriteHash(localDll);
+            File.WriteAllText(versionFile, tag);
 
-            log?.Invoke($"DLL updated ({bytes.Length / 1024}KB).");
+            log?.Invoke($"DLL updated to {tag} ({bytes.Length / 1024}KB).");
             return (true, "DLL updated.");
         }
         catch (Exception ex)

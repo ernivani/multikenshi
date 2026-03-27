@@ -50,6 +50,13 @@ class Program
                 return; // new instance launched, this one exits
         }
 
+        // Also check for DLL updates at startup (non-blocking)
+        if (!GitHubUpdater.IsDevMode())
+        {
+            var dllTask = GitHubUpdater.CheckAndUpdate(msg => Console.WriteLine(msg));
+            dllTask.Wait(TimeSpan.FromSeconds(10));
+        }
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 
