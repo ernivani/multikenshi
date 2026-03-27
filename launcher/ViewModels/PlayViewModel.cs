@@ -227,10 +227,10 @@ public partial class PlayViewModel : ObservableObject
                 var (sName, sId) = SteamIdentity.GetCurrentUser();
                 GameConfigWriter.Write(_config.KenshiPath, JoinIP, JoinPort, sName, sId);
 
-                // Mod auto-install disabled — using vanilla starts for now
-                // var (modUpdated, modMsg) = GameConfigWriter.EnsureMod(_config.KenshiPath);
-                // if (modUpdated)
-                //     _main.PostLog($"Mod: {modMsg}");
+                // Auto-download DLL + mod from GitHub releases if needed
+                var (dllUp, modUp, updateMsg) = await GitHubUpdater.CheckAndUpdate(_main.PostLog);
+                if (dllUp || modUp)
+                    _main.PostLog(updateMsg);
 
                 var process = ProcessLauncher.FindKenshiProcess();
                 int pid;
@@ -444,17 +444,30 @@ public partial class PlayViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void InstallDll()
+    private async Task InstallDll()
     {
         IsInstalling = true;
-        InstallMessage = "Searching for DLL...";
+        InstallMessage = "Checking for updates...";
 
+        // Try downloading from GitHub first
+        var (dllUp, _, msg) = await GitHubUpdater.CheckAndUpdate(_main.PostLog);
+        if (dllUp)
+        {
+            InstallMessage = "Downloaded from GitHub";
+            RefreshDllStatus();
+            _main.Settings.RefreshStatus();
+            IsInstalling = false;
+            ClearInstallMessageAfterDelay();
+            return;
+        }
+
+        InstallMessage = "Searching for DLL...";
         var dest = ProcessLauncher.GetDllPath();
         var source = FindLocalDll(dest);
 
         if (source == null)
         {
-            InstallMessage = "DLL not found — build the C++ project first";
+            InstallMessage = $"DLL not found — {msg}";
             IsInstalling = false;
             return;
         }
