@@ -742,8 +742,58 @@ public class RelayServer
                 Stop();
                 break;
 
+            case "/export":
+                if (string.IsNullOrEmpty(arg))
+                {
+                    var saves = KenshiSaveManager.ListSaves();
+                    if (saves.Count == 0)
+                    {
+                        PostLog("No Kenshi saves found.");
+                    }
+                    else
+                    {
+                        PostLog("Kenshi saves:");
+                        foreach (var s in saves)
+                            PostLog($"  {s.Name} ({s.SizeBytes / 1024}KB, {s.LastModified:MMM d HH:mm})");
+                        PostLog("Use: /export <name> to create a zip for sharing");
+                    }
+                }
+                else
+                {
+                    try
+                    {
+                        var zipPath = KenshiSaveManager.ExportSave(arg);
+                        PostLog($"Exported to: {zipPath}");
+                        PostLog("Share this file with your friends. They import via /import.");
+                    }
+                    catch (Exception ex)
+                    {
+                        PostLog($"ERROR: {ex.Message}");
+                    }
+                }
+                break;
+
+            case "/import":
+                if (string.IsNullOrEmpty(arg))
+                {
+                    PostLog("Usage: /import <path to zip>");
+                }
+                else
+                {
+                    try
+                    {
+                        KenshiSaveManager.ImportSave(arg);
+                        PostLog("Save imported as 'multiplayer'. Load it in Kenshi.");
+                    }
+                    catch (Exception ex)
+                    {
+                        PostLog($"ERROR: {ex.Message}");
+                    }
+                }
+                break;
+
             case "/help":
-                PostLog("Commands: /speed <val>, /kick <id>, /host <id>, /players, /save, /stop, /help");
+                PostLog("Commands: /speed <val>, /kick <id>, /host <id>, /players, /export [save], /import <zip>, /save, /stop, /help");
                 break;
 
             default:
